@@ -56,9 +56,17 @@ const NODES: ArchNode[] = [
   { id: 'claude', label: 'Claude\nSonnet 4.5', group: 'llm', description: 'Answer generation with full document context (sections, tables, web snippets). Generates inline citations and optional chart specifications.', level: 4 },
   { id: 'metrics', label: 'Answer Quality\nMetrics', group: 'llm', description: 'STS (source traceability), NVS (numerical verification), HDS (hallucination detection), CSCS (cross-store consistency).', level: 4 },
 
-  // --- Presentation Layer (Level 5) ---
+  // --- Frontend UI Layer (Level 5) ---
+  // Intelligence Platform
+  { id: 'dashboard', label: 'Executive\nDashboard', group: 'frontend', description: 'DIS score, pipeline step coverage, quality metrics, success rates, and agency/asset overview.', level: 5 },
+  { id: 'agencies_ui', label: 'Agencies\nBrowser', group: 'frontend', description: 'Browse and filter government agencies with asset counts and detail panels.', level: 5 },
+  { id: 'assets_ui', label: 'Assets\nReport', group: 'frontend', description: 'Detailed pipeline report with expandable workflows showing each step (onboarding, acquisition, parse, enrich, chunk, sync).', level: 5 },
+  { id: 'architecture_ui', label: 'Architecture\nDiagram', group: 'frontend', description: 'Interactive end-to-end architecture visualization with retrieval path highlighting (this page).', level: 5 },
+  { id: 'weaviate_ui', label: 'Weaviate\nStatus', group: 'frontend', description: 'Weaviate connection status, collection schemas, object counts, and property details.', level: 5 },
+  { id: 'neo4j_ui', label: 'Neo4j\nStatus', group: 'frontend', description: 'Neo4j node/relationship counts, graph schema visualization, top entities, constraints, and indexes.', level: 5 },
+  // Interactive Platform
   { id: 'qa_ui', label: 'Q&A\nInterface', group: 'frontend', description: 'Chat-style Q&A with retrieval mode selector (V, V+G, V+G+W), markdown answers, interactive charts, source citations, and quality metrics.', level: 5 },
-  { id: 'dashboard', label: 'Executive\nDashboard', group: 'frontend', description: 'DIS score, pipeline step coverage, quality metrics, agency/asset overview, Weaviate and Neo4j status.', level: 5 },
+  // Lab Platform
   { id: 'experiments', label: 'Experiment\nTracker', group: 'frontend', description: 'Ablation testing across 4 retrieval modes (V/VG/VW/VGW) with 350 stratified questions, per-mode metrics, and statistical comparison.', level: 5 },
 ];
 
@@ -106,10 +114,21 @@ const EDGES: ArchEdge[] = [
   { from: 'minio', to: 'claude', label: 'full doc context' },
   { from: 'claude', to: 'metrics', label: 'answer + citations' },
 
-  // Presentation
+  // === FRONTEND UI ===
+  // Q&A receives the synthesized answer
   { from: 'metrics', to: 'qa_ui', label: 'answer + charts + metrics' },
-  { from: 'postgres', to: 'dashboard', label: 'stats' },
-  { from: 'postgres', to: 'experiments', label: 'results' },
+
+  // Intelligence Platform pages read from storage/APIs
+  { from: 'postgres', to: 'dashboard', label: 'pipeline stats' },
+  { from: 'postgres', to: 'agencies_ui', label: 'agency data' },
+  { from: 'postgres', to: 'assets_ui', label: 'workflow reports' },
+  { from: 'weaviate', to: 'dashboard', label: 'index status' },
+  { from: 'weaviate', to: 'weaviate_ui', label: 'schema + counts' },
+  { from: 'neo4j', to: 'dashboard', label: 'graph stats' },
+  { from: 'neo4j', to: 'neo4j_ui', label: 'schema + graph' },
+
+  // Lab Platform reads experiment results
+  { from: 'postgres', to: 'experiments', label: 'experiment results' },
 ];
 
 // ---------------------------------------------------------------------------
