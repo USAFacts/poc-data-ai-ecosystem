@@ -1,0 +1,15 @@
+# MDA Semantics Provider plugin configuration.
+#
+# This provider uses MCP (Model Context Protocol) to call external
+# services for semantic processing (embeddings, projections, etc.).
+stores:
+  manifest_store:
+    connector:
+      module_path: "mda.manifest.store.file_store"
+      params:
+        store_path: "manifests/mda"
+
+# No explicit resolver mappings — convention-based resolution:
+# Provider: mda_semantics_provider
+# Engine: mcp_v0
+# Convention: providers.mda_semantics_provider.engines.mcp_v0.{component_path}

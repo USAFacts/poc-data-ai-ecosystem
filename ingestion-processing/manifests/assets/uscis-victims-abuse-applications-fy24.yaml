@@ -1,0 +1,18 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-victims-abuse-applications-fy24
+  labels:
+    domain: immigration
+    frequency: yearly
+    format: pdf
+    fiscal_year: "2024"
+spec:
+  agencyRef: uscis
+  description: FY24 Immigration Applications Made by Victims of Abuse - Statistics on VAWA, U visa, and T visa applications
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/data/fy24_immigration_applications_made_by_victims_of_abuse.pdf
+    format: pdf
+    schedule: "@yearly"

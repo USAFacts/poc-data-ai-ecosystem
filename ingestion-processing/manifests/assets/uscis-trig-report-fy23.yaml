@@ -1,0 +1,18 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-trig-report-fy23
+  labels:
+    domain: immigration
+    frequency: yearly
+    format: pdf
+    fiscal_year: "2023"
+spec:
+  agencyRef: uscis
+  description: FY23 TRIG Report to Congress - Trafficking Victims Immigration Relief report
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/reports/FY23_TRIG_Report_to_Congress.pdf
+    format: pdf
+    schedule: "@yearly"

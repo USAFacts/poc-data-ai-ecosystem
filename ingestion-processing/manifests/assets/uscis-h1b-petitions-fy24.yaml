@@ -1,0 +1,19 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-h1b-petitions-fy24
+  labels:
+    domain: immigration
+    frequency: annual
+    format: pdf
+    fiscal_year: "2024"
+    visa_type: h1b
+spec:
+  agencyRef: uscis
+  description: H-1B petitions report for fiscal year 2024 from Office of Legislative Affairs
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/legal-docs/ola_signed_fy2024_h1b_petitions.pdf
+    format: pdf
+    schedule: "@annual"

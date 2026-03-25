@@ -1,0 +1,5 @@
+# Maps manifest schema version to parser implementation.
+# Each schema string is looked up here to find the parser class.
+mapper:
+  "pipeline/v1": "parsers/legacy_pipeline_parser"
+  "standard/1.0": "parsers/standard_parser"

@@ -1,0 +1,1 @@
+"""MDA capability resolver."""

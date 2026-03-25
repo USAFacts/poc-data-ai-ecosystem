@@ -1,0 +1,94 @@
+# Parse Step Constraint Schema
+# Extracts structured content from documents acquired in landing-zone
+
+name: parse
+version: "1.0"
+description: |
+  Parses documents and extracts structured content using pluggable parsers.
+  Outputs JSON following Dublin Core (ISO 15836) metadata standard with
+  structured content sections (tables, key-values, sections).
+
+requires:
+  context:
+    - name: asset
+      description: Asset configuration
+    - name: agency
+      description: Agency that owns the asset
+    - name: storage
+      description: Storage client for reading source and writing parsed output
+
+  steps:
+    - acquisition  # Must run after acquisition to have a document to parse
+
+  config:
+    - name: parser
+      type: string
+      description: Parser type to use (vision, basic, auto)
+      default: auto
+      enum: [auto, vision, basic]
+    - name: parser_config
+      type: object
+      description: Parser-specific configuration options
+      default: {}
+
+provides:
+  outputs:
+    - name: object_path
+      type: string
+      description: Path where parsed JSON was stored (in parsed-zone)
+    - name: source_path
+      type: string
+      description: Path to source document in landing-zone
+    - name: parser
+      type: string
+      description: Parser that was used
+    - name: page_count
+      type: integer
+      description: Number of pages in document (if applicable)
+    - name: section_count
+      type: integer
+      description: Number of sections extracted
+    - name: table_count
+      type: integer
+      description: Number of tables extracted
+    - name: zone
+      type: string
+      description: Storage zone (parsed-zone)
+
+  artifacts:
+    - name: parsed_document
+      type: json
+      description: Structured JSON document following parsed-document schema
+      schema: https://usafacts.org/schemas/parsed-document/v1
+
+constraints:
+  preconditions:
+    - acquisition_completed  # Source document must exist in landing-zone
+    - parser_available       # Requested parser must be registered
+    - format_supported       # Document format must be supported by parser
+
+  postconditions:
+    - parsed_document_stored  # JSON stored in parsed-zone
+    - schema_compliant        # Output follows parsed-document schema
+    - content_extracted       # At least some content was extracted
+
+errors:
+  - code: PARSE_001
+    name: acquisition_not_found
+    message: "No acquisition output found. Parse step requires acquisition step."
+
+  - code: PARSE_002
+    name: parser_not_available
+    message: "Requested parser '{parser}' is not available"
+
+  - code: PARSE_003
+    name: format_not_supported
+    message: "Format '{format}' is not supported by parser '{parser}'"
+
+  - code: PARSE_004
+    name: parse_failed
+    message: "Failed to parse document: {error}"
+
+  - code: PARSE_005
+    name: storage_failed
+    message: "Failed to store parsed document: {error}"

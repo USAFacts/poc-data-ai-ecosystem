@@ -1,0 +1,18 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: ohss-yearbook-immigration-statistics
+  labels:
+    domain: immigration
+    frequency: yearly
+    format: pdf
+    fiscal_year: "2022"
+spec:
+  agencyRef: ohss
+  description: Yearbook of Immigration Statistics FY2022 - Comprehensive annual compilation of immigration statistics including admissions, naturalizations, enforcement actions, and refugee arrivals
+  acquisition:
+    type: http
+    source:
+      url: https://ohss.dhs.gov/sites/default/files/2024-03/2023_0818_plcy_yearbook_immigration_statistics_fy2022.pdf
+    format: pdf
+    schedule: "@yearly"

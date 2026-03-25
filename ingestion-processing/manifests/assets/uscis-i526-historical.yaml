@@ -1,0 +1,18 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-i526-historical
+  labels:
+    domain: immigration
+    frequency: annual
+    format: xlsx
+    fiscal_year: "2024"
+spec:
+  agencyRef: uscis
+  description: USCIS I-526/I-526E (EB-5 Immigrant Investor) Historical Data by Country of Birth - FY2022-FY2024
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/data/i526_i526E_cob_pref_r_fy22_fy23_fy24.xlsx
+    format: xlsx
+    schedule: "@annually"

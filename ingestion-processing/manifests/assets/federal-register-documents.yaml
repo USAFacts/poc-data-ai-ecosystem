@@ -1,0 +1,22 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: federal-register-documents
+  labels:
+    domain: regulatory
+    frequency: daily
+    format: json
+spec:
+  agencyRef: federal-register
+  description: Recent federal register documents (rules, notices, presidential documents)
+  acquisition:
+    type: api
+    source:
+      base_url: https://www.federalregister.gov
+      endpoint: /api/v1/agencies
+      method: GET
+      params: {}
+      headers:
+        Accept: application/json
+    format: json
+    schedule: "@daily"

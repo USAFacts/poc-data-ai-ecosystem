@@ -1,0 +1,151 @@
+# Enrichment Step Constraint Schema
+# Adds semantic context and metadata for RAG workflows
+
+name: enrichment
+version: "1.0"
+description: |
+  Enriches parsed documents with semantic context for RAG (Retrieval Augmented
+  Generation) workflows. Extracts summaries, entities, key topics, and generates
+  example queries that documents can answer.
+
+requires:
+  context:
+    - name: asset
+      description: Asset configuration
+    - name: agency
+      description: Agency that owns the asset
+    - name: storage
+      description: Storage client for reading parsed and writing enriched output
+
+  steps:
+    - parse  # Must run after parse to have structured content
+
+  config:
+    - name: enricher
+      type: string
+      description: Enricher type to use (auto, llm, basic)
+      default: auto
+      enum: [auto, llm, basic]
+    - name: enricher_config
+      type: object
+      description: Enricher-specific configuration options
+      default: {}
+      properties:
+        provider:
+          type: string
+          description: LLM provider for llm enricher (anthropic)
+          default: anthropic
+        model:
+          type: string
+          description: Model to use for LLM enrichment
+          default: claude-haiku-4-5
+        cache_enabled:
+          type: boolean
+          description: Enable LLM response caching
+          default: true
+        max_keywords:
+          type: integer
+          description: Maximum keywords to extract (basic enricher)
+          default: 10
+    - name: skip_if_exists
+      type: boolean
+      description: Skip enrichment if output already exists
+      default: false
+
+provides:
+  outputs:
+    - name: object_path
+      type: string
+      description: Path where enriched JSON was stored (in enrichment-zone)
+    - name: source_path
+      type: string
+      description: Path to source parsed document in parsed-zone
+    - name: enricher
+      type: string
+      description: Enricher that was used (e.g., auto(llm), basic)
+    - name: model
+      type: string
+      description: LLM model used (if applicable)
+    - name: zone
+      type: string
+      description: Storage zone (enrichment-zone)
+    - name: processing_time_ms
+      type: integer
+      description: Processing time in milliseconds
+    - name: tokens_used
+      type: object
+      description: Token usage for LLM enrichment
+    - name: cost
+      type: object
+      description: Estimated cost of enrichment
+    - name: entity_count
+      type: integer
+      description: Number of entities extracted
+    - name: topic_count
+      type: integer
+      description: Number of key topics identified
+    - name: table_enrichment_count
+      type: integer
+      description: Number of tables enriched
+
+  artifacts:
+    - name: enriched_document
+      type: json
+      description: Enriched JSON document following enriched-document schema
+      schema: https://usafacts.org/schemas/enriched-document/v1
+
+constraints:
+  preconditions:
+    - parse_completed     # Parsed document must exist in parsed-zone
+    - enricher_available  # Requested enricher must be available
+
+  postconditions:
+    - enriched_document_stored  # JSON stored in enrichment-zone
+    - schema_compliant          # Output follows enriched-document schema
+    - enrichment_present        # Document contains enrichment section
+
+errors:
+  - code: ENRICH_001
+    name: parse_not_found
+    message: "No parse output found. Enrichment step requires parse step."
+
+  - code: ENRICH_002
+    name: enricher_not_available
+    message: "Requested enricher '{enricher}' is not available"
+
+  - code: ENRICH_003
+    name: llm_error
+    message: "LLM enrichment failed: {error}"
+
+  - code: ENRICH_004
+    name: storage_failed
+    message: "Failed to store enriched document: {error}"
+
+  - code: ENRICH_005
+    name: invalid_parsed_document
+    message: "Parsed document is invalid or missing required fields"
+
+cost_model:
+  # Estimated costs per document by size
+  small:
+    description: Documents < 2KB
+    estimated_tokens: 500
+    estimated_cost_usd: 0.0006
+  medium:
+    description: Documents 2-20KB
+    estimated_tokens: 2500
+    estimated_cost_usd: 0.0028
+  large:
+    description: Documents > 20KB
+    estimated_tokens: 12500
+    estimated_cost_usd: 0.0148
+
+optimization_strategies:
+  - name: caching
+    description: Cache LLM responses by document checksum + model version
+  - name: skip_if_exists
+    description: Don't re-enrich unchanged documents
+  - name: auto_selection
+    description: Use BasicEnricher for small/simple documents
+  - name: model_choice
+    description: Default to Haiku for cost-effectiveness

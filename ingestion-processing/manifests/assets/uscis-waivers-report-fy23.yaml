@@ -1,0 +1,18 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-waivers-report-fy23
+  labels:
+    domain: immigration
+    frequency: yearly
+    format: pdf
+    fiscal_year: "2023"
+spec:
+  agencyRef: uscis
+  description: USCIS Report Number of Waivers FY 2023 - Statistics on immigration waivers granted
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/reports/USCIS_Report_Number_of_Waivers_FY_2023.pdf
+    format: pdf
+    schedule: "@yearly"

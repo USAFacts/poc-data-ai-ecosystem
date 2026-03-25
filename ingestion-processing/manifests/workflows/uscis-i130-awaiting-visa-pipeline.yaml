@@ -1,0 +1,34 @@
+apiVersion: pipeline/v1
+kind: Workflow
+metadata:
+  name: uscis-i130-awaiting-visa-pipeline
+spec:
+  assetRef: uscis-i130-awaiting-visa
+  steps:
+  - name: acquire
+    type: acquisition
+    config: {}
+  - name: parse
+    type: parse
+    dependsOn:
+    - acquire
+    config:
+      parser: auto
+  - name: enrich
+    type: enrichment
+    dependsOn:
+    - parse
+    config:
+      enricher: auto
+      skip_if_exists: true
+  - name: chunk
+    type: chunk
+    dependsOn:
+    - parse
+    config: {}
+  - name: sync
+    type: sync
+    dependsOn:
+    - enrich
+    - chunk
+    config: {}

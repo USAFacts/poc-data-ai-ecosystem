@@ -1,0 +1,20 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-h1b-characteristics-fy24
+  labels:
+    domain: immigration
+    frequency: annual
+    format: pdf
+    fiscal_year: "2024"
+    visa_type: h1b
+    report_type: congressional
+spec:
+  agencyRef: uscis
+  description: H-1B characteristics congressional report for fiscal year 2024
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/reports/ola_signed_h1b_characteristics_congressional_report_FY24.pdf
+    format: pdf
+    schedule: "@annual"

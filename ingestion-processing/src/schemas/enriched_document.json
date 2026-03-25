@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://usafacts.org/schemas/enriched-document/v1",
+  "title": "Enriched Document Schema",
+  "description": "Schema for documents enriched with semantic context for RAG workflows. Extends the parsed document schema with enrichment metadata including summaries, entities, and query suggestions.",
+  "type": "object",
+  "required": ["$schema", "metadata", "source", "content", "enrichment"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://usafacts.org/schemas/enriched-document/v1",
+      "description": "Schema identifier for validation"
+    },
+    "metadata": {
+      "$ref": "https://usafacts.org/schemas/parsed-document/v1#/$defs/DocumentMetadata"
+    },
+    "source": {
+      "$ref": "#/$defs/EnrichedSourceInfo"
+    },
+    "content": {
+      "$ref": "https://usafacts.org/schemas/parsed-document/v1#/$defs/DocumentContent"
+    },
+    "extraction": {
+      "$ref": "https://usafacts.org/schemas/parsed-document/v1#/$defs/ExtractionInfo"
+    },
+    "quality": {
+      "$ref": "https://usafacts.org/schemas/parsed-document/v1#/$defs/QualityMetrics"
+    },
+    "enrichment": {
+      "$ref": "#/$defs/Enrichment"
+    }
+  },
+  "$defs": {
+    "EnrichedSourceInfo": {
+      "type": "object",
+      "description": "Source information extended with enriched storage URL",
+      "required": ["originalUrl", "storageUrl", "filename", "checksum"],
+      "properties": {
+        "originalUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL where document was originally acquired from"
+        },
+        "storageUrl": {
+          "type": "string",
+          "description": "MinIO path to original document in landing-zone"
+        },
+        "parsedStorageUrl": {
+          "type": "string",
+          "description": "MinIO path to parsed JSON in parsed-zone"
+        },
+        "enrichedStorageUrl": {
+          "type": "string",
+          "description": "MinIO path to enriched JSON in enrichment-zone"
+        },
+        "filename": {
+          "type": "string",
+          "description": "Original filename"
+        },
+        "fileSize": {
+          "type": "integer",
+          "description": "Size of original file in bytes"
+        },
+        "checksum": {
+          "type": "string",
+          "description": "SHA256 checksum of original file"
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "MIME type of original file"
+        },
+        "pageCount": {
+          "type": "integer",
+          "description": "Number of pages (if applicable)"
+        },
+        "agency": {
+          "type": "string",
+          "description": "Agency that published the document"
+        },
+        "asset": {
+          "type": "string",
+          "description": "Asset name in the pipeline"
+        },
+        "workflow": {
+          "type": "string",
+          "description": "Workflow that processed this document"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version identifier (datestamp/timestamp)"
+        }
+      }
+    },
+    "Enrichment": {
+      "type": "object",
+      "description": "Semantic enrichment for RAG workflows",
+      "required": ["document", "enrichmentInfo"],
+      "properties": {
+        "document": {
+          "$ref": "#/$defs/DocumentEnrichment"
+        },
+        "sections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/SectionEnrichment"},
+          "description": "Per-section enrichment data"
+        },
+        "tables": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/TableEnrichment"},
+          "description": "Per-table enrichment data"
+        },
+        "enrichmentInfo": {
+          "$ref": "#/$defs/EnrichmentInfo"
+        }
+      }
+    },
+    "DocumentEnrichment": {
+      "type": "object",
+      "description": "Document-level semantic enrichment",
+      "required": ["summary"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "Executive summary of the document (2-4 sentences)"
+        },
+        "keyTopics": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Main topics and themes covered in the document"
+        },
+        "entities": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/EnrichedEntity"},
+          "description": "Named entities identified in the document"
+        },
+        "temporalScope": {
+          "$ref": "#/$defs/TemporalScope"
+        },
+        "documentType": {
+          "type": "string",
+          "enum": [
+            "statistical_report",
+            "form_instructions",
+            "policy_guidance",
+            "data_table",
+            "announcement",
+            "other"
+          ],
+          "description": "Classification of document type"
+        },
+        "targetAudience": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Intended audience for this document"
+        },
+        "exampleQueries": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Example questions this document can answer"
+        }
+      }
+    },
+    "EnrichedEntity": {
+      "type": "object",
+      "description": "Named entity with context",
+      "required": ["name", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Entity name or value"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "organization",
+            "person",
+            "location",
+            "form",
+            "agency",
+            "legislation",
+            "date",
+            "money",
+            "percentage",
+            "other"
+          ],
+          "description": "Entity type classification"
+        },
+        "context": {
+          "type": "string",
+          "description": "Surrounding context where entity appears"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Extraction confidence score"
+        }
+      }
+    },
+    "TemporalScope": {
+      "type": "object",
+      "description": "Time period covered by the document",
+      "properties": {
+        "startDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Start of coverage period (ISO 8601)"
+        },
+        "endDate": {
+          "type": "string",
+          "format": "date",
+          "description": "End of coverage period (ISO 8601)"
+        },
+        "period": {
+          "type": "string",
+          "description": "Human-readable period description (e.g., Q4 2024, FY 2024)"
+        }
+      }
+    },
+    "SectionEnrichment": {
+      "type": "object",
+      "description": "Per-section enrichment data",
+      "required": ["sectionId", "summary"],
+      "properties": {
+        "sectionId": {
+          "type": "string",
+          "description": "Reference to section in content"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Brief summary of section content"
+        },
+        "keyPoints": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Key points or takeaways from section"
+        },
+        "relevantQueries": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Questions this section can answer"
+        }
+      }
+    },
+    "TableEnrichment": {
+      "type": "object",
+      "description": "Per-table enrichment data",
+      "required": ["tableId", "description"],
+      "properties": {
+        "tableId": {
+          "type": "string",
+          "description": "Reference to table in content"
+        },
+        "description": {
+          "type": "string",
+          "description": "Natural language description of the table"
+        },
+        "columns": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ColumnDescription"},
+          "description": "Descriptions for each column"
+        },
+        "keyInsights": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Key insights from the table data"
+        },
+        "relevantQueries": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Questions this table can answer"
+        }
+      }
+    },
+    "ColumnDescription": {
+      "type": "object",
+      "description": "Description of a table column",
+      "required": ["columnName", "description", "dataType"],
+      "properties": {
+        "columnName": {
+          "type": "string",
+          "description": "Column header name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Semantic description of the column"
+        },
+        "dataType": {
+          "type": "string",
+          "enum": ["category", "numeric", "percentage", "currency", "date", "text", "identifier"],
+          "description": "Data type classification"
+        },
+        "sampleValues": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Example values from the column"
+        }
+      }
+    },
+    "EnrichmentInfo": {
+      "type": "object",
+      "description": "Metadata about the enrichment process",
+      "required": ["enricher", "enrichedAt"],
+      "properties": {
+        "enricher": {
+          "type": "string",
+          "description": "Enricher type used (llm, basic, auto)"
+        },
+        "model": {
+          "type": "string",
+          "description": "LLM model used (if applicable)"
+        },
+        "enrichedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of enrichment (ISO 8601)"
+        },
+        "processingTimeMs": {
+          "type": "integer",
+          "description": "Processing time in milliseconds"
+        },
+        "tokensUsed": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "integer",
+              "description": "Input tokens consumed"
+            },
+            "output": {
+              "type": "integer",
+              "description": "Output tokens generated"
+            }
+          },
+          "description": "Token usage for LLM enrichment"
+        },
+        "cost": {
+          "type": "object",
+          "properties": {
+            "amount": {
+              "type": "number",
+              "description": "Estimated cost"
+            },
+            "currency": {
+              "type": "string",
+              "description": "Currency code (e.g., USD)"
+            }
+          },
+          "description": "Estimated cost of enrichment"
+        }
+      }
+    }
+  }
+}

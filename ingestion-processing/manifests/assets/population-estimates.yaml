@@ -1,0 +1,17 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: population-estimates
+  labels:
+    domain: population
+    frequency: annual
+    format: csv
+spec:
+  agencyRef: census-bureau
+  description: Annual population estimates by state
+  acquisition:
+    type: http
+    source:
+      url: https://www2.census.gov/programs-surveys/popest/datasets/2020-2023/state/totals/NST-EST2023-ALLDATA.csv
+    format: csv
+    schedule: "@yearly"

@@ -1,0 +1,20 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-tps-cy23-report
+  labels:
+    domain: immigration
+    frequency: annual
+    format: pdf
+    calendar_year: "2023"
+    program: tps
+    report_type: congressional
+spec:
+  agencyRef: uscis
+  description: Temporary Protected Status (TPS) congressional report for calendar year 2023
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/reports/TPS_CY23_Congressional_Report.pdf
+    format: pdf
+    schedule: "@annual"

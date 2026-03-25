@@ -1,0 +1,18 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-special-immigrant-af-iraq-fy24
+  labels:
+    domain: immigration
+    frequency: yearly
+    format: pdf
+    fiscal_year: "2024"
+spec:
+  agencyRef: uscis
+  description: FY24 Special Immigrant Afghanistan and Iraq - Statistics on SIV applications and approvals
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/reports/fy24_special_immigrant_afghanistan_and_iraq.pdf
+    format: pdf
+    schedule: "@yearly"

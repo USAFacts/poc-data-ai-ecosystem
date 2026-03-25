@@ -1,0 +1,92 @@
+# Acquisition Step Constraint Schema
+# Defines inputs, outputs, and constraints for the acquisition step type
+
+name: acquisition
+version: "1.0"
+description: Acquires data from external sources (HTTP/API) and stores in object storage
+
+# What this step requires to execute
+requires:
+  # Required context
+  context:
+    - name: asset
+      type: Asset
+      description: Asset configuration with acquisition settings
+    - name: agency
+      type: Agency
+      description: Agency that owns the asset
+    - name: storage
+      type: MinioStorage
+      description: Storage client for persisting data
+
+  # Required configuration (from step config in workflow)
+  config: []  # No required config for basic acquisition
+
+  # Dependencies on other steps (what must run before)
+  steps: []  # Acquisition is typically the first step
+
+# What this step provides after execution
+provides:
+  # Output values available to subsequent steps
+  outputs:
+    - name: object_path
+      type: string
+      description: Path where data was stored in MinIO
+    - name: bytes_stored
+      type: integer
+      description: Size of stored data in bytes
+    - name: source_url
+      type: string
+      description: URL from which data was fetched
+    - name: format
+      type: string
+      description: Format of the stored data
+
+  # Artifacts produced
+  artifacts:
+    - name: raw_data
+      type: file
+      location: "{object_path}"
+      description: The raw downloaded data file
+    - name: metadata
+      type: json
+      location: "{metadata_path}"
+      description: Acquisition metadata including checksum
+
+# Constraints that must be satisfied
+constraints:
+  # Pre-conditions (checked before execution)
+  preconditions:
+    - name: valid_source
+      description: Asset must have valid acquisition source configuration
+      check: asset.spec.acquisition.source is not None
+
+    - name: storage_accessible
+      description: Storage must be accessible
+      check: storage.client is not None
+
+  # Post-conditions (checked after execution)
+  postconditions:
+    - name: data_stored
+      description: Data must be successfully stored
+      check: object_path is not None
+
+    - name: positive_size
+      description: Stored data must have positive size
+      check: bytes_stored > 0
+
+# Error handling
+errors:
+  - code: FETCH_FAILED
+    description: Failed to fetch data from source
+    recoverable: true
+    retry_strategy: exponential_backoff
+
+  - code: STORAGE_FAILED
+    description: Failed to store data in MinIO
+    recoverable: true
+    retry_strategy: exponential_backoff
+
+  - code: INVALID_SOURCE
+    description: Invalid or missing source configuration
+    recoverable: false

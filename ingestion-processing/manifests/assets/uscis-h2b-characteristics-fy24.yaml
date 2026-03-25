@@ -1,0 +1,20 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-h2b-characteristics-fy24
+  labels:
+    domain: immigration
+    frequency: annual
+    format: pdf
+    fiscal_year: "2024"
+    visa_type: h2b
+    report_type: characteristics
+spec:
+  agencyRef: uscis
+  description: H-2B characteristics report for fiscal year 2024 from DHS
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/reports/dhs_signed_report_%20h2b_fy24_characteristics_report.pdf
+    format: pdf
+    schedule: "@annual"

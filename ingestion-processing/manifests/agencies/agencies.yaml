@@ -1,0 +1,62 @@
+# Government Agency Registry
+# All federal agencies and data sources in a single file
+
+- apiVersion: pipeline/v1
+  kind: Agency
+  metadata:
+    name: census-bureau
+    labels:
+      category: demographics
+      country: us
+  spec:
+    fullName: U.S. Census Bureau
+    baseUrl: https://www.census.gov
+    description: Official source for US demographic and economic data
+
+- apiVersion: pipeline/v1
+  kind: Agency
+  metadata:
+    name: federal-register
+    labels:
+      category: regulatory
+      country: us
+  spec:
+    fullName: Federal Register
+    baseUrl: https://www.federalregister.gov
+    description: Official journal of the federal government containing rules, proposed rules, and public notices
+
+- apiVersion: pipeline/v1
+  kind: Agency
+  metadata:
+    name: uscis
+    labels:
+      category: immigration
+      country: us
+  spec:
+    fullName: U.S. Citizenship and Immigration Services
+    baseUrl: https://www.uscis.gov
+    description: Federal agency overseeing lawful immigration to the United States
+
+- apiVersion: pipeline/v1
+  kind: Agency
+  metadata:
+    name: ohss
+    labels:
+      category: immigration
+      country: us
+  spec:
+    fullName: Office of Homeland Security Statistics
+    baseUrl: https://ohss.dhs.gov
+    description: DHS office providing statistical information on immigration, border security, and other homeland security topics
+
+- apiVersion: pipeline/v1                                                                                                                                                                                             
+  kind: Agency                                                                                                                                                                                                        
+  metadata:                                                                                                                                                                                                           
+    name: rpc                                                                                                                                                                                                         
+    labels:                                                                                                                                                                                                           
+      category: immigration                                                                                                                                                                                           
+      country: us                                                                                                                                                                                                     
+  spec:                                                                                                                                                                                                               
+    fullName: Refugee Processing Center                                                                                                                                                                               
+    baseUrl: https://www.rpc.state.gov                                                                                                                                                                                
+    description: State Department center providing data and processing support for the U.S. Refugee Admissions Program (USRAP)     

@@ -1,0 +1,1 @@
+"""Embedding capabilities via MCP."""

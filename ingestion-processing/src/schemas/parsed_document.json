@@ -1,0 +1,577 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://usafacts.org/schemas/parsed-document/v1",
+  "title": "Parsed Document Schema",
+  "description": "Industry-standard schema for parsed documents combining Dublin Core metadata (ISO 15836) with structured content extraction. Compatible with Schema.org for interoperability.",
+  "type": "object",
+  "required": ["$schema", "metadata", "source", "content"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://usafacts.org/schemas/parsed-document/v1",
+      "description": "Schema identifier for validation"
+    },
+    "metadata": {
+      "$ref": "#/$defs/DocumentMetadata"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceInfo"
+    },
+    "content": {
+      "$ref": "#/$defs/DocumentContent"
+    },
+    "extraction": {
+      "$ref": "#/$defs/ExtractionInfo"
+    },
+    "quality": {
+      "$ref": "#/$defs/QualityMetrics"
+    }
+  },
+  "$defs": {
+    "DocumentMetadata": {
+      "type": "object",
+      "description": "Dublin Core (ISO 15836) compatible metadata elements",
+      "required": ["identifier", "title", "date"],
+      "properties": {
+        "identifier": {
+          "type": "string",
+          "description": "dc:identifier - Unique identifier for the document"
+        },
+        "title": {
+          "type": "string",
+          "description": "dc:title - Name given to the resource"
+        },
+        "creator": {
+          "type": ["string", "array"],
+          "items": {"type": "string"},
+          "description": "dc:creator - Entity primarily responsible for making the resource"
+        },
+        "subject": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "dc:subject - Topic of the resource"
+        },
+        "description": {
+          "type": "string",
+          "description": "dc:description - Account of the resource"
+        },
+        "publisher": {
+          "type": "string",
+          "description": "dc:publisher - Entity responsible for making resource available"
+        },
+        "contributor": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "dc:contributor - Entities contributing to the resource"
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "dc:date - Date of parsing/extraction (ISO 8601)"
+        },
+        "dateCreated": {
+          "type": "string",
+          "description": "Original document creation date if available"
+        },
+        "dateModified": {
+          "type": "string",
+          "description": "Original document modification date if available"
+        },
+        "type": {
+          "type": "string",
+          "description": "dc:type - Nature or genre of the resource",
+          "enum": ["Dataset", "Report", "Form", "Table", "Document", "Spreadsheet", "Presentation", "Image", "Other"]
+        },
+        "format": {
+          "type": "string",
+          "description": "dc:format - File format/MIME type of original"
+        },
+        "language": {
+          "type": "string",
+          "description": "dc:language - Language of the resource (ISO 639-1)"
+        },
+        "rights": {
+          "type": "string",
+          "description": "dc:rights - Information about rights held"
+        },
+        "coverage": {
+          "type": "object",
+          "description": "dc:coverage - Spatial/temporal topic",
+          "properties": {
+            "temporal": {
+              "type": "object",
+              "properties": {
+                "start": {"type": "string"},
+                "end": {"type": "string"},
+                "period": {"type": "string"}
+              }
+            },
+            "spatial": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "SourceInfo": {
+      "type": "object",
+      "description": "Information about the source document and storage locations",
+      "required": ["originalUrl", "storageUrl", "filename", "checksum"],
+      "properties": {
+        "originalUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL where document was originally acquired from"
+        },
+        "storageUrl": {
+          "type": "string",
+          "description": "MinIO path to original document in landing-zone"
+        },
+        "parsedStorageUrl": {
+          "type": "string",
+          "description": "MinIO path to this parsed JSON in parsed-zone"
+        },
+        "filename": {
+          "type": "string",
+          "description": "Original filename"
+        },
+        "fileSize": {
+          "type": "integer",
+          "description": "Size of original file in bytes"
+        },
+        "checksum": {
+          "type": "string",
+          "description": "SHA256 checksum of original file"
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "MIME type of original file"
+        },
+        "pageCount": {
+          "type": "integer",
+          "description": "Number of pages (if applicable)"
+        },
+        "agency": {
+          "type": "string",
+          "description": "Agency that published the document"
+        },
+        "asset": {
+          "type": "string",
+          "description": "Asset name in the pipeline"
+        },
+        "workflow": {
+          "type": "string",
+          "description": "Workflow that processed this document"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version identifier (datestamp/timestamp)"
+        }
+      }
+    },
+    "DocumentContent": {
+      "type": "object",
+      "description": "Structured content extracted from the document",
+      "properties": {
+        "markdown": {
+          "type": "string",
+          "description": "Full document as markdown (LLM-optimized)"
+        },
+        "plainText": {
+          "type": "string",
+          "description": "Plain text extraction"
+        },
+        "pages": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/Page"},
+          "description": "Page-by-page content (for multi-page documents)"
+        },
+        "sections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/Section"},
+          "description": "Logical sections identified in the document"
+        },
+        "tables": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/Table"},
+          "description": "Tables extracted from the document"
+        },
+        "keyValuePairs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/KeyValuePair"},
+          "description": "Key-value pairs extracted (forms, metadata fields)"
+        },
+        "entities": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/Entity"},
+          "description": "Named entities identified"
+        }
+      }
+    },
+    "Page": {
+      "type": "object",
+      "required": ["pageNumber"],
+      "properties": {
+        "pageNumber": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "width": {"type": "number"},
+        "height": {"type": "number"},
+        "unit": {
+          "type": "string",
+          "enum": ["pixel", "inch", "mm", "point"]
+        },
+        "content": {
+          "type": "string",
+          "description": "Page content as markdown"
+        },
+        "elements": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ContentElement"}
+        }
+      }
+    },
+    "Section": {
+      "type": "object",
+      "required": ["type", "content"],
+      "properties": {
+        "id": {"type": "string"},
+        "type": {
+          "type": "string",
+          "enum": [
+            "header",
+            "footer",
+            "title",
+            "heading",
+            "paragraph",
+            "list",
+            "table",
+            "figure",
+            "caption",
+            "footnote",
+            "index",
+            "toc",
+            "appendix",
+            "summary",
+            "metadata",
+            "unknown"
+          ],
+          "description": "Classification of section type"
+        },
+        "level": {
+          "type": "integer",
+          "description": "Heading level (1-6) if applicable"
+        },
+        "title": {
+          "type": "string",
+          "description": "Section title if identified"
+        },
+        "content": {
+          "type": "string",
+          "description": "Section content as text/markdown"
+        },
+        "pageNumber": {
+          "type": "integer",
+          "description": "Page number (for PDFs) or sheet index (for Excel, 1-based)"
+        },
+        "sheetName": {
+          "type": "string",
+          "description": "Sheet name for Excel files"
+        },
+        "boundingBox": {
+          "$ref": "#/$defs/BoundingBox"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Classification confidence score"
+        }
+      }
+    },
+    "Table": {
+      "type": "object",
+      "required": ["rows"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {
+          "type": "string",
+          "description": "Table caption/title if identified"
+        },
+        "pageNumber": {
+          "type": "integer",
+          "description": "Page number (for PDFs) or sheet index (for Excel, 1-based)"
+        },
+        "sheetName": {
+          "type": "string",
+          "description": "Sheet name for Excel files"
+        },
+        "headers": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Column headers"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": ["string", "number", "null"]
+            }
+          },
+          "description": "Table data as 2D array"
+        },
+        "rowCount": {"type": "integer"},
+        "columnCount": {"type": "integer"},
+        "markdown": {
+          "type": "string",
+          "description": "Table as markdown"
+        },
+        "boundingBox": {"$ref": "#/$defs/BoundingBox"},
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "KeyValuePair": {
+      "type": "object",
+      "required": ["key", "value"],
+      "properties": {
+        "key": {"type": "string"},
+        "value": {
+          "type": ["string", "number", "boolean", "null"]
+        },
+        "valueType": {
+          "type": "string",
+          "enum": ["string", "number", "date", "currency", "percentage", "boolean", "unknown"]
+        },
+        "pageNumber": {"type": "integer"},
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "boundingBox": {"$ref": "#/$defs/BoundingBox"}
+      }
+    },
+    "Entity": {
+      "type": "object",
+      "required": ["type", "value"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "person",
+            "organization",
+            "location",
+            "date",
+            "money",
+            "percentage",
+            "phone",
+            "email",
+            "url",
+            "address",
+            "other"
+          ]
+        },
+        "value": {"type": "string"},
+        "normalizedValue": {"type": "string"},
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "ContentElement": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["text", "table", "image", "chart", "formula", "checkbox", "signature", "stamp", "barcode", "qrcode"]
+        },
+        "content": {"type": "string"},
+        "boundingBox": {"$ref": "#/$defs/BoundingBox"},
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "BoundingBox": {
+      "type": "object",
+      "description": "Spatial location of element on page",
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "width": {"type": "number"},
+        "height": {"type": "number"},
+        "unit": {
+          "type": "string",
+          "enum": ["pixel", "inch", "mm", "point", "normalized"]
+        }
+      }
+    },
+    "ExtractionInfo": {
+      "type": "object",
+      "description": "Information about the extraction process",
+      "properties": {
+        "parser": {
+          "type": "string",
+          "description": "Parser used (e.g., nanonets, azure, textract)"
+        },
+        "parserVersion": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model used for extraction"
+        },
+        "extractedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "processingTimeMs": {
+          "type": "integer",
+          "description": "Time taken to parse in milliseconds"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Overall extraction confidence"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "errors": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "QualityMetrics": {
+      "type": "object",
+      "description": "Quality metrics for evaluating extraction fidelity and AI readiness. Based on OmniDocBench (CVPR 2025) and industry-standard document evaluation metrics.",
+      "properties": {
+        "scores": {
+          "type": "object",
+          "description": "Quality scores (0-100 scale)",
+          "properties": {
+            "overall": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Composite quality score"
+            },
+            "extraction": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Content extraction completeness"
+            },
+            "structural": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Structural element detection (tables, sections)"
+            },
+            "aiReadiness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Suitability for AI/LLM consumption"
+            }
+          }
+        },
+        "content": {
+          "type": "object",
+          "description": "Content extraction metrics",
+          "properties": {
+            "sourceSizeBytes": {
+              "type": "integer",
+              "description": "Original file size in bytes"
+            },
+            "extractedTextChars": {
+              "type": "integer",
+              "description": "Characters extracted as plain text"
+            },
+            "extractedMarkdownChars": {
+              "type": "integer",
+              "description": "Characters in markdown output"
+            },
+            "estimatedTokens": {
+              "type": "integer",
+              "description": "Estimated token count for LLM consumption"
+            },
+            "contentDensity": {
+              "type": "number",
+              "description": "Ratio of extracted chars to source bytes"
+            },
+            "tableCount": {
+              "type": "integer"
+            },
+            "sectionCount": {
+              "type": "integer"
+            },
+            "keyValueCount": {
+              "type": "integer"
+            }
+          }
+        },
+        "tables": {
+          "type": "array",
+          "description": "Per-table quality metrics",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rowCount": {"type": "integer"},
+              "columnCount": {"type": "integer"},
+              "cellFillRate": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Percentage of non-empty cells"
+              },
+              "hasHeaders": {"type": "boolean"},
+              "headerQuality": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Quality of detected headers"
+              },
+              "dataTypeConsistency": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Per-column data type consistency"
+              }
+            }
+          }
+        },
+        "parserConfidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence score from parser if available"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Quality warnings"
+        },
+        "issues": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Detected quality issues"
+        }
+      }
+    }
+  }
+}

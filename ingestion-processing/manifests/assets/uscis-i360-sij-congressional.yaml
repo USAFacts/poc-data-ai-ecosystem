@@ -1,0 +1,19 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-i360-sij-congressional
+  labels:
+    domain: immigration
+    frequency: quarterly
+    format: xlsx
+    fiscal_year: "2025"
+    quarter: "2"
+spec:
+  agencyRef: uscis
+  description: USCIS I-360 Special Immigrant Juvenile Congressional Reports - FY2025 Q2
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/data/i360_sij_congressional_fy2025_q2.xlsx
+    format: xlsx
+    schedule: "@quarterly"

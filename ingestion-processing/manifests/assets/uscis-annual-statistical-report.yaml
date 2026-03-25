@@ -1,0 +1,18 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-annual-statistical-report
+  labels:
+    domain: immigration
+    frequency: yearly
+    format: pdf
+    fiscal_year: "2023"
+spec:
+  agencyRef: uscis
+  description: USCIS Annual Statistical Report (FY2023) - Comprehensive statistics on immigration services
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/reports/fy2023_annual_statistical_report.pdf
+    format: pdf
+    schedule: "@yearly"

@@ -1,0 +1,15 @@
+# MDA Ingestion Provider plugin configuration.
+#
+# This provider wraps the existing pipeline steps (acquisition, parse, enrichment)
+# as MDA capabilities. It uses convention-based resolution (no explicit mappings needed).
+stores:
+  manifest_store:
+    connector:
+      module_path: "mda.manifest.store.file_store"
+      params:
+        store_path: "manifests"
+
+# No explicit resolver mappings — convention-based resolution is used:
+# Provider: mda_ingestion_provider
+# Engine: python_v0
+# Convention: providers.mda_ingestion_provider.engines.python_v0.{component_path}

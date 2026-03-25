@@ -1,0 +1,19 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-sij-report
+  labels:
+    domain: immigration
+    frequency: annual
+    format: pdf
+    visa_type: sij
+    report_type: directorate_operations
+spec:
+  agencyRef: uscis
+  description: Special Immigrant Juveniles (SIJ) report from USCIS Directorate of Operations
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/reports/DO_SIJ_Report.pdf
+    format: pdf
+    schedule: "@annual"

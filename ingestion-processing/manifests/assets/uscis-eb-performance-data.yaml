@@ -1,0 +1,19 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-eb-performance-data
+  labels:
+    domain: immigration
+    frequency: quarterly
+    format: xlsx
+    fiscal_year: "2025"
+    quarter: "3"
+spec:
+  agencyRef: uscis
+  description: USCIS Employment-Based Immigration Performance Data (I-140, I-360, I-526) - FY2025 Q3
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/data/eb_i140_i360_i526_performancedata_fy2025_q3.xlsx
+    format: xlsx
+    schedule: "@quarterly"

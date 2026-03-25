@@ -1,0 +1,42 @@
+[project]
+name = "gov-data-analysis"
+version = "0.1.0"
+description = "Analysis layer for exploring processed government data with LLM-powered metadata curation"
+requires-python = ">=3.11"
+dependencies = [
+    "jupyterlab>=4.0",
+    "pandas>=2.0",
+    "duckdb>=1.0",
+    "minio>=7.2",
+    "anthropic>=0.40",
+    "ipywidgets>=8.0",
+    "matplotlib>=3.8",
+    "pyarrow>=15.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/analysis_helpers", "src/metadata_assistant"]
+
+[tool.hatch.build]
+sources = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

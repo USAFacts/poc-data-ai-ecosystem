@@ -1,0 +1,18 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: ohss-lawful-permanent-residents
+  labels:
+    domain: immigration
+    frequency: yearly
+    format: pdf
+    fiscal_year: "2023"
+spec:
+  agencyRef: ohss
+  description: Lawful Permanent Residents Annual Flow Report FY2023 - Statistics on persons granted lawful permanent resident status (green cards) including country of birth, class of admission, and state of residence
+  acquisition:
+    type: http
+    source:
+      url: https://ohss.dhs.gov/sites/default/files/2024-09/2024_0906_plcy_lawful_permanent_residents_fy2023.pdf
+    format: pdf
+    schedule: "@yearly"

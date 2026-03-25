@@ -1,0 +1,18 @@
+apiVersion: pipeline/v1                                                                                                                                                                                               
+kind: Asset                                                                                                                                                                                                           
+metadata:                                                                                                                                                                                                             
+  name: rpc-usrap-report-to-congress                                                                                                                                                                                  
+  labels:                                                                                                                                                                                                             
+    domain: immigration                                                                                                                                                                                               
+    frequency: yearly                                                                                                                                                                                                 
+    format: pdf                                                                                                                                                                                                       
+    fiscal_year: "2024"                                                                                                                                                                                               
+spec:                                                                                                                                                                                                                 
+  agencyRef: rpc                                                                                                                                                                                                      
+  description: FY-2024 US Refugee Admissions Program (USRAP) Report to Congress - Annual report covering refugee admissions statistics, processing data, and program performance                                      
+  acquisition:                                                                                                                                                                                                        
+    type: http                                                                                                                                                                                                        
+    source:                                                                                                                                                                                                           
+      url: https://www.rpc.state.gov/documents/FY-2024-USRAP-Report-to-Congress_FINAL-Accessible-11.02.2023.pdf                                                                                                       
+    format: pdf
+    schedule: "@yearly"          

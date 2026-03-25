@@ -1,0 +1,19 @@
+apiVersion: pipeline/v1
+kind: Asset
+metadata:
+  name: uscis-i765-employment-auth
+  labels:
+    domain: immigration
+    frequency: quarterly
+    format: xlsx
+    fiscal_year: "2025"
+    quarter: "3"
+spec:
+  agencyRef: uscis
+  description: USCIS I-765 Application for Employment Authorization - FY2025 Q3
+  acquisition:
+    type: http
+    source:
+      url: https://www.uscis.gov/sites/default/files/document/data/i765_application_for_employment_fy2025_q3.xlsx
+    format: xlsx
+    schedule: "@quarterly"
