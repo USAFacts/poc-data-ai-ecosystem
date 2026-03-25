@@ -78,19 +78,28 @@ def _split_into_claims(text: str) -> list[str]:
 # --- STS: Source Traceability Score ---
 
 _CITATION_PATTERNS = [
+    # Explicit parenthetical citations — (Source: **[Title]** from **[Agency]**)
+    r'\(Source:',
+    r'\(source:',
+    # Bold document/agency references
     r'\*\*\[.+?\]\*\*',                        # **[Document Title]**
     r'from\s+(?:the\s+)?\*\*[^*]+\*\*',        # from **Agency** or from the **Report**
     r'\*\*[^*]+\*\*\s+from\s+\*\*[^*]+\*\*',   # **Title** from **Agency**
+    # URLs
     r'\(https?://[^\s)]+\)',                     # (URL)
     r'\[.+?\]\(https?://[^\s)]+\)',              # [text](URL) markdown link
-    r'according to\s+(?:the\s+)?(?:\*\*)?',      # according to the **/according to the
+    r'https?://\S+',                             # bare URL in text
+    # Attribution phrases
+    r'according to\s+(?:the\s+)?',               # according to the...
     r'(?:Document|Source)\s+\d+',                # Document 1, Source 1
-    r'the\s+\*\*[^*]+(?:Report|Data|Statistics|Forms|Survey)\*\*',  # the **XYZ Report**
+    # Named source references
+    r'the\s+\*\*[^*]+\*\*',                      # the **Any Bold Reference**
     r'\*\*USCIS[^*]*\*\*',                       # **USCIS anything**
-    r'based on\s+(?:the\s+)?(?:\*\*|data|the\s+\w+\s+report)', # based on the **/data/the X report
-    r'(?:report|data|document)\s+(?:from|by)\s',  # report from/by
-    r'(?:Based on|Per|From)\s+the\s+\w+',        # Based on the USCIS...
-    r'USCIS\s+\w+\s+(?:report|data|form)',       # USCIS quarterly report/data/form
+    r'\*\*[A-Z][^*]{3,}\*\*',                    # **Any Capitalized Bold Text** (likely a source)
+    # Attribution verbs
+    r'(?:based on|per|from|as reported by|as published by)\s+(?:the\s+)?',
+    r'(?:report|data|document|statistics)\s+(?:from|by|shows?|indicates?)',
+    r'USCIS\s+\w+',                              # USCIS followed by any word
 ]
 
 
@@ -102,41 +111,79 @@ def _has_citation(sentence: str) -> bool:
     return False
 
 
+def _is_data_continuation(claim: str) -> bool:
+    """Check if a claim is a data point that continues from a cited context.
+
+    Bullet points, numbered items, and data breakdowns that follow
+    a cited introductory sentence inherit that citation.
+    """
+    # Starts with bold category label: **Family-Based forms**:
+    if re.match(r'^\*\*[^*]+\*\*\s*[:—–-]?\s', claim):
+        return True
+    # Starts with a dash/bullet (after our preprocessing)
+    if re.match(r'^[-•]\s', claim):
+        return True
+    # Contains specific numbers with context (data point, not opinion)
+    if re.search(r'\d{1,3}(?:,\d{3})+', claim):
+        return True
+    # "Including..." or "Such as..." continuation
+    if re.match(r'(?:Including|Such as|Specifically|This includes|These include|This figure|This represents|The data)', claim, re.IGNORECASE):
+        return True
+    return False
+
+
 def _compute_sts(answer: str, documents: list[dict]) -> float:
     """Source Traceability Score = cited claims / total claims.
 
-    A claim is considered cited if:
-    - It contains a citation pattern directly, OR
-    - It continues from a recently cited paragraph (within 2 sentences), OR
-    - It references data ("The report/data/document shows/includes")
+    A claim is cited if:
+    1. It directly contains a citation pattern, OR
+    2. It's a data continuation within 3 claims of a citation
+       (bullet points, numbered breakdowns, elaborations), OR
+    3. It's an introductory/structural sentence (headings, transitions)
+       that doesn't make a factual claim requiring citation.
     """
     claims = _split_into_claims(answer)
     if not claims:
         return 1.0
 
     cited = 0
-    citation_recency = 0  # How many claims ago the last citation was
+    claims_since_citation = 99  # Start high so first uncited claim isn't counted
 
     for c in claims:
         if _has_citation(c):
             cited += 1
-            citation_recency = 0
-        elif citation_recency <= 2:
-            # Within 2 claims of a citation — check if it's a continuation
-            # (references report/data, or starts with a category label)
-            if re.search(r'(?:the\s+)?(?:report|data|document|statistics)\s+(?:show|include|indicate|reveal|provide)', c, re.IGNORECASE):
-                cited += 1
-                citation_recency += 1
-            elif re.search(r'^\*\*[^*]+\*\*\s+(?:received|included|showed|reported|had|were)', c, re.IGNORECASE):
-                # Bold category label followed by data: "**Family-Based forms** received..."
-                cited += 1
-                citation_recency += 1
-            else:
-                citation_recency += 1
+            claims_since_citation = 0
+        elif claims_since_citation <= 3 and _is_data_continuation(c):
+            # Data point near a citation — inherits attribution
+            cited += 1
+            claims_since_citation += 1
+        elif _is_structural(c):
+            # Structural sentence — doesn't need citation
+            cited += 1
+            claims_since_citation += 1
         else:
-            citation_recency += 1
+            claims_since_citation += 1
 
     return cited / len(claims)
+
+
+def _is_structural(claim: str) -> bool:
+    """Check if a claim is structural/transitional rather than factual.
+
+    These don't need citations: introductions, transitions, caveats.
+    """
+    structural_patterns = [
+        r'^(?:Here|Below|The following|Note|It is important)',
+        r'^(?:In summary|Overall|To summarize|In conclusion)',
+        r'^(?:For more|Additional|Further) (?:information|details|data)',
+        r'^(?:The (?:table|chart|data|breakdown) (?:below|above|shows|provides))',
+        r'(?:should be noted|worth noting|important to note)',
+        r'^(?:As of|During|In) (?:FY|fiscal|the)',
+    ]
+    for p in structural_patterns:
+        if re.search(p, claim, re.IGNORECASE):
+            return True
+    return False
 
 
 # --- NVS: Numerical Verification Score ---

@@ -1366,11 +1366,14 @@ RETRIEVED SOURCES:
 INSTRUCTIONS:
 1. Answer the question based on the sources provided. Prefer the most RECENT information when sources conflict.
 2. Web search results are typically more current than ingested documents. If the question is about current facts (who holds a position, current policies, latest numbers), prioritize web sources.
-3. Always cite your sources. For documents: **[Document Title]** from **[Agency Name]**. For web results: **[Page Title]** ([URL]).
-4. If mentioning specific data, reference which source it came from
-5. Keep the answer concise but informative (2-4 paragraphs max)
-6. Use markdown formatting for readability (bold for emphasis, bullet points if listing items)
-7. When referencing numbers, include the time period and source
+3. CRITICAL — EVERY factual sentence MUST include an inline source citation. Use these formats:
+   - For documents: (Source: **[Title]** from **[Agency]**)
+   - For web results: (Source: [Page Title], [URL])
+   - For bullet points listing data from the same source, cite the source at the start of the list, then each bullet inherits that citation.
+   Do NOT write any factual claim without a parenthetical source reference. This is the most important rule.
+4. Keep the answer concise but informative (2-4 paragraphs max)
+5. Use markdown formatting for readability (bold for emphasis, bullet points if listing items)
+6. When referencing numbers, include the time period and source
 8. If the data contains numerical information, assess which chart types would meaningfully help answer the question. Include MULTIPLE chart specifications at the END of your response, each in its own block. Consider:
    - "bar": for comparing categories or ranking items
    - "line": for showing trends over time or sequential data

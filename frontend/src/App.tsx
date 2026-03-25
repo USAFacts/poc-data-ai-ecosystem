@@ -7,6 +7,7 @@ import ChatbotPage from './pages/ChatbotPage';
 import WeaviatePage from './pages/WeaviatePage';
 import Neo4jPage from './pages/Neo4jPage';
 import ExperimentTrackerPage from './pages/ExperimentTrackerPage';
+import ArchitecturePage from './pages/ArchitecturePage';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/weaviate" element={<WeaviatePage />} />
         <Route path="/neo4j" element={<Neo4jPage />} />
         <Route path="/experiments" element={<ExperimentTrackerPage />} />
+        <Route path="/architecture" element={<ArchitecturePage />} />
       </Routes>
     </Layout>
   );

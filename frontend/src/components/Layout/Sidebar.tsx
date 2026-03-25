@@ -8,6 +8,7 @@ const navItems = [
   { path: '/', label: 'Executive Dashboard', Icon: DashboardIcon },
   { path: '/agencies', label: 'Agencies', Icon: AgencyIcon },
   { path: '/assets', label: 'Assets Report', Icon: AssetIcon },
+  { path: '/architecture', label: 'Architecture', Icon: ArchitectureIcon },
   { path: '/weaviate', label: 'Weaviate', Icon: WeaviateIcon },
   { path: '/neo4j', label: 'Neo4j Graph', Icon: Neo4jIcon },
 ];
@@ -229,6 +230,19 @@ function ChatBubbleIcon({ className }: { className?: string }) {
   );
 }
 
+
+// Architecture icon (flow/diagram)
+function ArchitectureIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="6" height="4" rx="1" />
+      <rect x="15" y="3" width="6" height="4" rx="1" />
+      <rect x="9" y="17" width="6" height="4" rx="1" />
+      <path d="M6 7v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7" />
+      <path d="M12 12v5" />
+    </svg>
+  );
+}
 
 // Weaviate icon (database cylinder)
 function WeaviateIcon({ className }: { className?: string }) {
