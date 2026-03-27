@@ -21,7 +21,7 @@ print(f"[DEBUG] ANTHROPIC_API_KEY loaded: {bool(api_key)}")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import agencies, asset_reports, assets, experiments, graph, metrics, neo4j_status, search, stats, weaviate_status, workflows
+from src.api.routes import agencies, asset_reports, assets, data, experiments, graph, metrics, neo4j_status, search, stats, weaviate_status, workflows
 from src.models.domain import Base
 from src.services.database import engine
 from src.services.storage import get_storage_service
@@ -118,8 +118,20 @@ tags_metadata = [
         "description": "Knowledge graph queries via Neo4j. Explore entity relationships, document connections, and temporal coverage.",
     },
     {
+        "name": "weaviate",
+        "description": "Weaviate vector database status. Collection schemas, object counts, and connection info.",
+    },
+    {
+        "name": "neo4j",
+        "description": "Neo4j knowledge graph status. Node/relationship counts, indexes, constraints, and graph schema visualization.",
+    },
+    {
+        "name": "data",
+        "description": "Data layer API. Browse documents, entities, agencies, time periods, and raw files. Structured access to all ingested and enriched data.",
+    },
+    {
         "name": "experiments",
-        "description": "RAG evaluation experiment tracker. Run experiments comparing search modes across test questions.",
+        "description": "RAG evaluation experiment tracker. Run ablation tests comparing retrieval modes (V, VG, VW, VGW) across 350 stratified questions with quality metrics (STS, NVS, HDS, CSCS).",
     },
 ]
 
@@ -127,25 +139,41 @@ tags_metadata = [
 app = FastAPI(
     title="Gov Data Pipeline API",
     description="""
-## Government Data Pipeline REST API
+## Government Data AI Ecosystem — REST API
 
-This API provides access to the government data ingestion pipeline, including:
+Full API for the government data ingestion, retrieval, and Q&A pipeline.
 
-### Core Features
-- **Agencies & Assets**: Browse government data sources and their configurations
+### Intelligence Platform
+- **Agencies & Assets**: Browse government data sources and their pipeline configurations
 - **Workflows**: View and trigger data processing pipelines
-- **Quality Metrics**: Track DIS (Data Ingestion Score) for quality monitoring
+- **Quality Metrics**: DIS (Data Ingestion Score) for quality monitoring
+- **Weaviate Status**: Vector database schema, collection counts, and connection health
+- **Neo4j Status**: Knowledge graph schema, node/relationship counts, indexes
 
-### Data Assistant (RAG)
-- **Hybrid Search**: Weaviate-powered BM25 + vector search with graph expansion
-- **Knowledge Graph**: Neo4j entity relationships for query expansion and context
-- **Source Attribution**: All answers include citations to source documents
+### Data Layer API (`/api/data/`)
+- **Documents**: List, search, and access full document content with sections, tables, and chunks
+- **Entities**: Browse extracted entities with mention counts and cross-document relationships
+- **Time Periods**: Temporal coverage of the document collection
+- **Graph Paths**: Shortest-path queries between entities in the knowledge graph
+- **Raw Objects**: Download original files (PDF, XLSX, CSV) from MinIO storage
 
-### Storage Integration
-- Documents stored in MinIO object storage across zones:
-  - `landing-zone`: Raw acquired files
-  - `parsed-zone`: Structured parsed documents
-  - `enrichment-zone`: LLM-enriched documents with embeddings
+### Q&A (RAG Pipeline)
+- **4 Retrieval Modes**: V (Weaviate), VG (+Graph), VW (+Web), VGW (all sources)
+- **Hybrid Search**: BM25 + vector with cross-encoder reranking and trust-weighted scoring
+- **Web Search**: Live Firecrawl queries against .gov and usafacts.org
+- **Answer Quality**: STS, NVS, HDS, CSCS metrics per answer
+- **Charts**: Auto-generated visualizations when data supports them
+
+### Experiment Tracker
+- **Ablation Testing**: Compare retrieval modes across 350 stratified questions
+- **Metrics**: Confidence, relevance, entity coverage, STS, NVS, HDS, CSCS per mode
+- **Stratified Sampling**: Configurable sample size (10-100%) preserving category distribution
+
+### Storage
+- MinIO object storage: `landing-zone`, `parsed-zone`, `enrichment-zone`
+- PostgreSQL: pipeline metadata, workflow state, experiment results
+- Weaviate: vector embeddings and hybrid search indexes
+- Neo4j: knowledge graph with entities, agencies, time periods
 
 ### Authentication
 Currently no authentication required (development mode).
@@ -187,6 +215,7 @@ app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(graph.router, prefix="/api/graph", tags=["graph"])
 app.include_router(weaviate_status.router, prefix="/api/weaviate", tags=["weaviate"])
 app.include_router(neo4j_status.router, prefix="/api/neo4j", tags=["neo4j"])
+app.include_router(data.router, prefix="/api/data", tags=["data"])
 app.include_router(experiments.router, prefix="/api/experiments", tags=["experiments"])
 
 
