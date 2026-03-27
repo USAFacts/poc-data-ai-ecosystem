@@ -585,6 +585,7 @@ def _search_with_weaviate(
 # adjust ranking, they don't exclude sources.
 
 _SOURCE_TRUST = {
+    "congress": 1.00,   # Congress.gov API — official legislative data
     "census":   1.00,   # U.S. Census Bureau Data API — official primary data
     "local":    1.00,   # Ingested + enriched (Weaviate + Neo4j)
     "usafacts": 0.85,   # USAFacts.org — curated, high quality
@@ -603,6 +604,8 @@ _RECENCY_KEYWORDS = [
 
 def _classify_source(doc_ref: "DocumentReference") -> str:
     """Classify a DocumentReference into a trust tier."""
+    if doc_ref.document_id.startswith("congress/"):
+        return "congress"
     if doc_ref.document_id.startswith("census/"):
         return "census"
     if doc_ref.document_id.startswith("web/"):
@@ -743,42 +746,49 @@ _CENSUS_QUERY_MAP: list[dict[str, Any]] = [
     {
         "keywords": ["population", "how many people", "residents", "demographic"],
         "variables": ["B01001_001E", "NAME"],
+        "var_labels": {"B01001_001E": "Total"},
         "label": "Total Population",
         "dataset": "acs/acs5",
     },
     {
         "keywords": ["foreign born", "immigrant", "immigration", "born outside"],
         "variables": ["B05002_001E", "B05002_013E", "NAME"],
+        "var_labels": {"B05002_001E": "Total", "B05002_013E": "Foreign-Born"},
         "label": "Foreign-Born Population",
         "dataset": "acs/acs5",
     },
     {
         "keywords": ["citizenship", "naturalized", "citizen"],
         "variables": ["B05001_001E", "B05001_002E", "B05001_005E", "B05001_006E", "NAME"],
+        "var_labels": {"B05001_001E": "Total", "B05001_002E": "U.S. Citizen", "B05001_005E": "Naturalized", "B05001_006E": "Not a Citizen"},
         "label": "Citizenship Status",
         "dataset": "acs/acs5",
     },
     {
         "keywords": ["median income", "household income", "income"],
         "variables": ["B19013_001E", "NAME"],
+        "var_labels": {"B19013_001E": "Median Income"},
         "label": "Median Household Income",
         "dataset": "acs/acs5",
     },
     {
         "keywords": ["poverty", "poverty rate", "below poverty"],
         "variables": ["B17001_001E", "B17001_002E", "NAME"],
+        "var_labels": {"B17001_001E": "Total", "B17001_002E": "Below Poverty"},
         "label": "Poverty Status",
         "dataset": "acs/acs5",
     },
     {
         "keywords": ["employment", "unemployment", "labor force", "unemployed"],
         "variables": ["B23025_001E", "B23025_005E", "NAME"],
+        "var_labels": {"B23025_001E": "Labor Force", "B23025_005E": "Unemployed"},
         "label": "Employment Status",
         "dataset": "acs/acs5",
     },
     {
         "keywords": ["education", "bachelor", "high school", "degree"],
         "variables": ["B15003_001E", "B15003_022E", "B15003_023E", "NAME"],
+        "var_labels": {"B15003_001E": "Total 25+", "B15003_022E": "Bachelor's", "B15003_023E": "Master's"},
         "label": "Educational Attainment",
         "dataset": "acs/acs5",
     },
@@ -882,20 +892,22 @@ def _search_census(query: str, decomposition: "QueryDecomposition", db: Any) -> 
                     reverse=True,
                 )[:10]
 
+            var_labels = qmap.get("var_labels", {})
             lines = [f"**{qmap['label']}** ({geo_label}, 2022 ACS 5-Year Estimates)"]
             lines.append("")
             for row in data_rows:
                 name = row.get("NAME", "")
-                values = []
+                parts = []
                 for var in qmap["variables"]:
                     if var == "NAME":
                         continue
                     val = row.get(var, "N/A")
+                    lbl = var_labels.get(var, var)
                     try:
-                        values.append(f"{int(val):,}")
+                        parts.append(f"{lbl}: {int(val):,}")
                     except (ValueError, TypeError):
-                        values.append(str(val))
-                lines.append(f"- {name}: {', '.join(values)}")
+                        parts.append(f"{lbl}: {val}")
+                lines.append(f"- {name} -- {' | '.join(parts)}")
 
             lines.append("")
             lines.append(result.get("citation", ""))
@@ -920,6 +932,85 @@ def _search_census(query: str, decomposition: "QueryDecomposition", db: Any) -> 
         except Exception as e:
             logger.warning(f"[census] Failed to fetch {qmap['label']}: {e}")
             continue
+
+    return refs
+
+
+# ---------------------------------------------------------------------------
+# Congress.gov legislative data retrieval
+# ---------------------------------------------------------------------------
+
+_CONGRESS_KEYWORDS = [
+    "bill", "legislation", "law", "act", "congress", "congressional",
+    "senator", "representative", "house", "senate",
+    "sponsor", "cosponsor", "committee", "judiciary",
+    "vote", "amendment", "hearing",
+    "immigration bill", "immigration law", "immigration act",
+    "immigration reform", "border bill", "asylum bill",
+    "daca bill", "dream act", "visa bill",
+    "crs report", "legislative",
+]
+
+
+def _search_congress(query: str, decomposition: "QueryDecomposition") -> list[DocumentReference]:
+    """Fetch Congressional data when the query involves legislation or Congress.
+
+    Returns DocumentReferences with bill/legislative data as snippets.
+    Trust weighting is applied later by _apply_trust_weights() (congress tier = 1.0).
+    """
+    query_lower = query.lower()
+
+    if not any(kw in query_lower for kw in _CONGRESS_KEYWORDS):
+        return []
+
+    try:
+        from src.services.congress import search_immigration_bills
+    except ImportError:
+        logger.warning("[search] Congress service not available")
+        return []
+
+    refs: list[DocumentReference] = []
+
+    try:
+        result = search_immigration_bills(limit=10)
+        bills = result.get("bills", [])
+
+        if not bills:
+            return []
+
+        lines = ["**Recent Immigration Bills in Congress**", ""]
+        for bill in bills[:8]:
+            bill_id = f"{bill.get('type', '')} {bill.get('number', '')}"
+            title = bill.get("title", "")
+            action = bill.get("latest_action", {})
+            action_text = action.get("text", "") if isinstance(action, dict) else ""
+            action_date = action.get("actionDate", "") if isinstance(action, dict) else ""
+            lines.append(f"- **{bill_id}**: {title}")
+            if action_text:
+                lines.append(f"  Latest action ({action_date}): {action_text}")
+
+        lines.append("")
+        lines.append(result.get("citation", ""))
+
+        snippet = "\n".join(lines)
+
+        ref = DocumentReference(
+            document_id="congress/bills/immigration/0",
+            document_title="Immigration Bills - Congress.gov",
+            asset_name="congress-api",
+            agency_name="U.S. Congress",
+            agency_id="congress",
+            section="Judiciary Committee Bills",
+            relevance_score=0.88,
+            snippet=snippet,
+            original_url=None,
+            source_url="https://www.congress.gov",
+            file_format="API",
+        )
+        refs.append(ref)
+
+    except Exception as e:
+        logger.warning(f"[congress] Failed to fetch immigration bills: {e}")
 
     return refs
 
@@ -1051,7 +1142,16 @@ def search_documents(
         except Exception as e:
             logger.warning(f"[search] Census search failed: {e}")
 
-        # Apply trust-based weighting across ALL sources (local + web + census)
+        # Congress.gov data — always attempted when query is relevant
+        try:
+            congress_results = _search_congress(decomposition.original_query, decomposition)
+            if congress_results:
+                results.extend(congress_results)
+                data_metrics["congress_results_added"] = len(congress_results)
+        except Exception as e:
+            logger.warning(f"[search] Congress search failed: {e}")
+
+        # Apply trust-based weighting across ALL sources (local + web + census + congress)
         query_lower = decomposition.original_query.lower()
         is_recency_sensitive = any(kw in query_lower for kw in _RECENCY_KEYWORDS)
         _apply_trust_weights(results, is_recency_sensitive)
@@ -1966,9 +2066,47 @@ def catalog_search(
         except Exception as e:
             logger.warning(f"[catalog] Web search failed: {e}")
 
+    # --- Census Bureau data ---
+    try:
+        census_refs = _search_census(decomposition.original_query, decomposition, db)
+        for ref in census_refs:
+            results.append({
+                "source": "census",
+                "title": ref.document_title,
+                "agency": ref.agency_name,
+                "asset": ref.asset_name,
+                "doc_id": ref.document_id,
+                "snippet": ref.snippet[:500],
+                "section": ref.section,
+                "page_number": None,
+                "relevance_score": ref.relevance_score,
+                "url": ref.source_url,
+            })
+    except Exception as e:
+        logger.warning(f"[catalog] Census search failed: {e}")
+
+    # --- Congress.gov data ---
+    try:
+        congress_refs = _search_congress(decomposition.original_query, decomposition)
+        for ref in congress_refs:
+            results.append({
+                "source": "congress",
+                "title": ref.document_title,
+                "agency": ref.agency_name,
+                "asset": ref.asset_name,
+                "doc_id": ref.document_id,
+                "snippet": ref.snippet[:500],
+                "section": ref.section,
+                "page_number": None,
+                "relevance_score": ref.relevance_score,
+                "url": ref.source_url,
+            })
+    except Exception as e:
+        logger.warning(f"[catalog] Congress search failed: {e}")
+
     # Apply trust weights and sort
     for r in results:
-        trust = {"census": 1.0, "local": 1.0, "usafacts": 0.85, "gov": 0.70}.get(r["source"], 0.6)
+        trust = {"congress": 1.0, "census": 1.0, "local": 1.0, "usafacts": 0.85, "gov": 0.70}.get(r["source"], 0.6)
         r["relevance_score"] = round(r["relevance_score"] * trust, 3)
 
     results.sort(key=lambda x: x["relevance_score"], reverse=True)

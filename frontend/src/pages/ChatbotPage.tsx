@@ -22,7 +22,7 @@ export default function ChatbotPage() {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedMode, setSelectedMode] = useState('vg');
+  const [selectedMode, setSelectedMode] = useState('vgw');
   const [liveTraceStep, setLiveTraceStep] = useState(-1);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -98,10 +98,12 @@ export default function ChatbotPage() {
   };
 
   const suggestedQuestions = [
-    'Which Family-Based form has the largest pending backlog?',
-    'How many forms were received across all categories in FY2025 Q3?',
-    'Which countries have the most H-2B beneficiaries?',
-    'How many TPS beneficiaries are there by country?',
+    'What is the foreign-born population by state?',
+    'What immigration bills are currently before Congress?',
+    'What are the poverty and unemployment rates for immigrants vs native-born?',
+    'How has refugee admissions changed over the past 10 years?',
+    'Which states have the highest share of naturalized citizens?',
+    'What is the median household income by immigration status?',
   ];
 
   // Default forms, programs, and agencies to show when API returns empty
@@ -176,13 +178,13 @@ export default function ChatbotPage() {
                 ))}
               </div>
 
-              {/* Suggestion cards — 2x2 grid */}
-              <div className="grid grid-cols-2 gap-4 w-full max-w-xl mb-8">
+              {/* Suggestion cards — 2x3 grid */}
+              <div className="grid grid-cols-2 gap-3 w-full max-w-xl mb-8">
                 {suggestedQuestions.map((question, i) => (
                   <button
                     key={i}
                     onClick={() => { setInput(question); }}
-                    className="text-left p-4 rounded-2xl bg-[#F0F5F1] border border-[#E0E8E2] hover:bg-[#E5EDE7] hover:border-[#C8D5CB] transition-all group"
+                    className="text-left p-3.5 rounded-2xl bg-[#F0F5F1] border border-[#E0E8E2] hover:bg-[#E5EDE7] hover:border-[#C8D5CB] transition-all group"
                   >
                     <p className="text-sm font-medium text-slate-800">{question}</p>
                   </button>

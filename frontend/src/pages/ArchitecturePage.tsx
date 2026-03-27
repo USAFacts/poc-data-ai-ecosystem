@@ -23,10 +23,10 @@ interface ArchEdge {
 
 const NODES: ArchNode[] = [
   // --- Data Sources (Level 0) ---
-  // These are the ultimate origins of data. Both serve the ingestion pipeline
-  // (batch) AND are searchable at query time via Firecrawl (live).
   { id: 'gov_sites', label: '.gov\nWebsites', group: 'source', description: 'Federal government websites (USCIS, DHS, OHSS, Census, FBI, etc.). Serve two roles: batch ingestion of documents AND live web search at query time via Firecrawl.', level: 0 },
   { id: 'usafacts', label: 'USAFacts.org', group: 'source', description: 'Curated US government data and statistics. Accessed at query time via Firecrawl web search (not batch-ingested).', level: 0 },
+  { id: 'census_api', label: 'Census Bureau\nData API', group: 'source', description: 'U.S. Census Bureau Data API (api.census.gov). Provides population, demographics, income, housing, and employment statistics from ACS, Decennial Census, and other surveys. Trust tier: 1.0.', level: 0 },
+  { id: 'congress_api', label: 'Congress.gov\nAPI', group: 'source', description: 'Congress.gov API (api.congress.gov). Provides bills, amendments, members, committee activity, CRS reports, and voting records. Queries Judiciary committee referrals for immigration legislation. Trust tier: 1.0.', level: 0 },
 
   // --- Ingestion Pipeline (Level 1) ---
   // Batch processing: downloads, parses, enriches, and indexes documents.
@@ -49,8 +49,10 @@ const NODES: ArchNode[] = [
   { id: 'hybrid_search', label: 'Hybrid Search\n(BM25 + Vector)', group: 'retrieval', description: 'Weaviate hybrid search combining keyword matching (BM25) and semantic similarity (cosine on embeddings), alpha=0.5.', level: 3 },
   { id: 'graph_expand', label: 'Graph\nExpansion', group: 'retrieval', description: 'Neo4j traversal: finds related entities at depth 2 and documents that mention the same entities. Enriches results with cross-document context.', level: 3 },
   { id: 'web_search', label: 'Live Web Search\n(Firecrawl)', group: 'retrieval', description: 'Real-time search via Firecrawl API against .gov websites and USAFacts.org. Provides current information not yet ingested. Results deduplicated against local documents.', level: 3 },
+  { id: 'census_search', label: 'Census Data\nRetrieval', group: 'retrieval', description: 'Detects statistical/demographic queries and fetches ACS 5-Year data from the Census Bureau API. Resolves geography (FIPS codes) and retrieves labeled variables (population, foreign-born, income, etc.).', level: 3 },
+  { id: 'congress_search', label: 'Congressional\nRetrieval', group: 'retrieval', description: 'Detects legislative queries and fetches immigration bills from Congress.gov API via Judiciary committee referrals. Returns bill titles, sponsors, actions, and CRS summaries.', level: 3 },
   { id: 'reranker', label: 'Cross-Encoder\nReranker', group: 'retrieval', description: 'ms-marco-MiniLM-L-6-v2 cross-encoder reranker. Blends reranker scores (60%) with original Weaviate hybrid scores (40%).', level: 3 },
-  { id: 'trust_weight', label: 'Trust\nWeighting', group: 'retrieval', description: 'Applies source trust hierarchy: Local=1.0, USAFacts=0.85, .gov=0.70, Other=0.60. Adds recency bonus for time-sensitive queries.', level: 3 },
+  { id: 'trust_weight', label: 'Trust\nWeighting', group: 'retrieval', description: 'Applies source trust hierarchy: Congress=1.0, Census=1.0, Local=1.0, USAFacts=0.85, .gov=0.70, Other=0.60. Adds recency bonus for time-sensitive queries.', level: 3 },
 
   // --- Synthesis Layer (Level 4) ---
   { id: 'claude', label: 'Claude\nSonnet 4.5', group: 'llm', description: 'Answer generation with full document context (sections, tables, web snippets). Generates inline citations and optional chart specifications.', level: 4 },
@@ -65,9 +67,13 @@ const NODES: ArchNode[] = [
   { id: 'weaviate_ui', label: 'Weaviate\nStatus', group: 'frontend', description: 'Weaviate connection status, collection schemas, object counts, and property details.', level: 5 },
   { id: 'neo4j_ui', label: 'Neo4j\nStatus', group: 'frontend', description: 'Neo4j node/relationship counts, graph schema visualization, top entities, constraints, and indexes.', level: 5 },
   // Interactive Platform
-  { id: 'qa_ui', label: 'Q&A\nInterface', group: 'frontend', description: 'Chat-style Q&A with retrieval mode selector (V, V+G, V+G+W), markdown answers, interactive charts, source citations, and quality metrics.', level: 5 },
+  { id: 'qa_ui', label: 'Q&A\nInterface', group: 'frontend', description: 'Chat-style Q&A with retrieval mode selector (V, V+G, V+G+W), markdown answers, interactive charts, source citations, and quality metrics. Default mode: VGW (All Sources).', level: 5 },
+  { id: 'learn_ui', label: 'Learn\nExperience', group: 'frontend', description: 'Guided learning journey with topic cards, state-specific queries, reasoning traces, quality metrics (STS/NVS/HDS/CSCS), and interactive charts. Uses VGW mode with all sources.', level: 5 },
+  { id: 'catalog_ui', label: 'Catalog\nSearch', group: 'frontend', description: 'Multi-source document search across Local, Census API, Congress.gov API, .gov websites, and USAFacts.org. Structured snippet rendering with source badges.', level: 5 },
   // Lab Platform
   { id: 'experiments', label: 'Experiment\nTracker', group: 'frontend', description: 'Ablation testing across 4 retrieval modes (V/VG/VW/VGW) with 350 stratified questions, per-mode metrics, and statistical comparison.', level: 5 },
+  // MCP
+  { id: 'mcp_server', label: 'MCP Data\nServer', group: 'llm', description: 'FastMCP server providing Claude Desktop with 14 tools: Weaviate search, Neo4j graph queries, MinIO document access, PostgreSQL metadata, and Firecrawl web search. Runs as stdio transport.', level: 4 },
 ];
 
 const EDGES: ArchEdge[] = [
@@ -103,20 +109,39 @@ const EDGES: ArchEdge[] = [
   { from: 'web_search', to: 'gov_sites', label: 'live search', dashes: true },
   { from: 'web_search', to: 'usafacts', label: 'live search', dashes: true },
 
+  // Census API retrieval
+  { from: 'query_decomp', to: 'census_search', label: 'stats keywords', dashes: true },
+  { from: 'census_search', to: 'census_api', label: 'ACS variables', dashes: true },
+  { from: 'census_search', to: 'postgres', label: 'FIPS lookup', dashes: true },
+
+  // Congress API retrieval
+  { from: 'query_decomp', to: 'congress_search', label: 'legislation keywords', dashes: true },
+  { from: 'congress_search', to: 'congress_api', label: 'Judiciary bills', dashes: true },
+
   // All retrieval results flow through reranking and trust weighting
   { from: 'hybrid_search', to: 'reranker', label: 'candidates' },
   { from: 'reranker', to: 'trust_weight', label: 'reranked' },
   { from: 'web_search', to: 'trust_weight', label: 'web results', dashes: true },
   { from: 'graph_expand', to: 'trust_weight', label: 'graph context', dashes: true },
+  { from: 'census_search', to: 'trust_weight', label: 'census data', dashes: true },
+  { from: 'congress_search', to: 'trust_weight', label: 'legislative data', dashes: true },
 
   // Synthesis: Claude receives ranked sources + full document content
   { from: 'trust_weight', to: 'claude', label: 'ranked sources' },
   { from: 'minio', to: 'claude', label: 'full doc context' },
   { from: 'claude', to: 'metrics', label: 'answer + citations' },
 
+  // === MCP SERVER ===
+  { from: 'weaviate', to: 'mcp_server', label: '14 tools' },
+  { from: 'neo4j', to: 'mcp_server', label: '' },
+  { from: 'minio', to: 'mcp_server', label: '' },
+  { from: 'postgres', to: 'mcp_server', label: '' },
+
   // === FRONTEND UI ===
-  // Q&A receives the synthesized answer
+  // Q&A, Learn, and Catalog receive synthesized answers
   { from: 'metrics', to: 'qa_ui', label: 'answer + charts + metrics' },
+  { from: 'metrics', to: 'learn_ui', label: 'answer + trace + metrics' },
+  { from: 'trust_weight', to: 'catalog_ui', label: 'ranked results' },
 
   // Intelligence Platform pages read from storage/APIs
   { from: 'postgres', to: 'dashboard', label: 'pipeline stats' },
@@ -169,23 +194,68 @@ interface RetrievalPath {
 const RETRIEVAL_PATHS: RetrievalPath[] = [
   {
     id: 'v', label: 'Weaviate Only', short: 'V', color: '#3B82F6',
-    description: 'Fastest path. Query decomposition → Weaviate hybrid search (BM25 + vector) → cross-encoder reranker → Claude synthesis.',
-    nodes: ['query_decomp', 'hybrid_search', 'weaviate', 'reranker', 'trust_weight', 'minio', 'claude', 'metrics', 'qa_ui'],
+    description: 'Fastest path. Query decomposition → Weaviate hybrid search (BM25 + vector) → cross-encoder reranker → Claude synthesis. Census/Congress still trigger if keywords match.',
+    nodes: ['query_decomp', 'hybrid_search', 'weaviate', 'reranker', 'trust_weight', 'census_search', 'census_api', 'congress_search', 'congress_api', 'minio', 'claude', 'metrics', 'qa_ui'],
   },
   {
     id: 'vg', label: 'Weaviate + Graph', short: 'V+G', color: '#10B981',
-    description: 'Adds Neo4j graph expansion for entity-aware retrieval, related-document discovery, and cross-document context enrichment.',
-    nodes: ['query_decomp', 'hybrid_search', 'weaviate', 'graph_expand', 'neo4j', 'reranker', 'trust_weight', 'minio', 'claude', 'metrics', 'qa_ui'],
+    description: 'Adds Neo4j graph expansion for entity-aware retrieval, related-document discovery, and cross-document context enrichment. Census/Congress always available.',
+    nodes: ['query_decomp', 'hybrid_search', 'weaviate', 'graph_expand', 'neo4j', 'reranker', 'trust_weight', 'census_search', 'census_api', 'congress_search', 'congress_api', 'minio', 'claude', 'metrics', 'qa_ui'],
   },
   {
     id: 'vw', label: 'Weaviate + Web', short: 'V+W', color: '#F59E0B',
-    description: 'Adds live Firecrawl web search against .gov and USAFacts.org for current information not yet ingested. Trust-weighted merge with local results.',
-    nodes: ['query_decomp', 'hybrid_search', 'weaviate', 'web_search', 'gov_sites', 'usafacts', 'reranker', 'trust_weight', 'minio', 'claude', 'metrics', 'qa_ui'],
+    description: 'Adds live Firecrawl web search against .gov and USAFacts.org. Census/Congress APIs provide authoritative government data alongside web results.',
+    nodes: ['query_decomp', 'hybrid_search', 'weaviate', 'web_search', 'gov_sites', 'usafacts', 'census_search', 'census_api', 'congress_search', 'congress_api', 'reranker', 'trust_weight', 'minio', 'claude', 'metrics', 'qa_ui'],
   },
   {
     id: 'vgw', label: 'All Sources', short: 'V+G+W', color: '#8B5CF6',
-    description: 'Full pipeline: Weaviate hybrid search + Neo4j graph expansion + live web search. Most comprehensive but slowest. All sources trust-weighted and deduplicated.',
-    nodes: ['query_decomp', 'hybrid_search', 'weaviate', 'graph_expand', 'neo4j', 'web_search', 'gov_sites', 'usafacts', 'reranker', 'trust_weight', 'minio', 'claude', 'metrics', 'qa_ui'],
+    description: 'Full pipeline: Weaviate + Neo4j graph + live web + Census Bureau API + Congress.gov API. Six source tiers trust-weighted and deduplicated. Default mode for Q&A and Learn.',
+    nodes: ['query_decomp', 'hybrid_search', 'weaviate', 'graph_expand', 'neo4j', 'web_search', 'gov_sites', 'usafacts', 'census_search', 'census_api', 'congress_search', 'congress_api', 'postgres', 'reranker', 'trust_weight', 'minio', 'claude', 'metrics', 'qa_ui', 'learn_ui', 'catalog_ui'],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// System layer definitions (architectural view)
+// ---------------------------------------------------------------------------
+
+interface SystemLayer {
+  id: string;
+  label: string;
+  color: string;
+  description: string;
+  nodes: string[];
+}
+
+const SYSTEM_LAYERS: SystemLayer[] = [
+  {
+    id: 'hosted', label: 'Hosted Sources', color: '#10B981',
+    description: 'Persistent storage and batch ingestion pipeline. Databases (PostgreSQL, Weaviate, Neo4j, MinIO) and the 5-stage ingestion pipeline (Acquire → Parse → Chunk → Enrich → Sync).',
+    nodes: ['minio', 'postgres', 'weaviate', 'neo4j', 'acquisition', 'parse', 'chunk', 'enrich', 'sync'],
+  },
+  {
+    id: 'ephemeral', label: 'Ephemeral Sources', color: '#F59E0B',
+    description: 'External APIs queried at request time — no data stored locally. Results are fetched live, trust-weighted, and merged with hosted data per query.',
+    nodes: ['gov_sites', 'usafacts', 'census_api', 'congress_api', 'web_search', 'census_search', 'congress_search'],
+  },
+  {
+    id: 'retrieval', label: 'Retrieval Mechanisms', color: '#8B5CF6',
+    description: 'Query-time orchestration: decomposes questions, routes to search backends, reranks candidates, and applies trust-based weighting across all 6 source tiers.',
+    nodes: ['query_decomp', 'hybrid_search', 'graph_expand', 'web_search', 'census_search', 'congress_search', 'reranker', 'trust_weight'],
+  },
+  {
+    id: 'serving', label: 'Serving Layer', color: '#EC4899',
+    description: 'LLM synthesis and quality assessment. Claude generates cited answers with charts; metrics score STS/NVS/HDS/CSCS; MCP server exposes 14 tools to Claude Desktop.',
+    nodes: ['claude', 'metrics', 'mcp_server'],
+  },
+  {
+    id: 'admin_ui', label: 'Admin UI', color: '#06B6D4',
+    description: 'Intelligence Platform pages for monitoring pipeline health, browsing agencies/assets, inspecting database status, running experiments, and viewing architecture.',
+    nodes: ['dashboard', 'agencies_ui', 'assets_ui', 'architecture_ui', 'weaviate_ui', 'neo4j_ui', 'experiments'],
+  },
+  {
+    id: 'user_ui', label: 'User-Facing UI', color: '#0A3161',
+    description: 'Interactive Platform experiences: Q&A chat with multi-source retrieval, guided Learn journey with reasoning traces, and Catalog search with source badges.',
+    nodes: ['qa_ui', 'learn_ui', 'catalog_ui'],
   },
 ];
 
@@ -198,13 +268,17 @@ export default function ArchitecturePage() {
   const networkRef = useRef<Network | null>(null);
   const [selectedNode, setSelectedNode] = useState<ArchNode | null>(null);
   const [highlightPath, setHighlightPath] = useState<string | null>(null);
+  const [highlightLayer, setHighlightLayer] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const highlightedNodes = highlightPath
-      ? new Set(RETRIEVAL_PATHS.find(p => p.id === highlightPath)?.nodes ?? [])
-      : null;
+    let highlightedNodes: Set<string> | null = null;
+    if (highlightPath) {
+      highlightedNodes = new Set(RETRIEVAL_PATHS.find(p => p.id === highlightPath)?.nodes ?? []);
+    } else if (highlightLayer) {
+      highlightedNodes = new Set(SYSTEM_LAYERS.find(l => l.id === highlightLayer)?.nodes ?? []);
+    }
 
     const nodes = NODES.map((n) => {
       const gc = GROUP_CONFIG[n.group];
@@ -294,7 +368,7 @@ export default function ArchitecturePage() {
       network.destroy();
       networkRef.current = null;
     };
-  }, [highlightPath]);
+  }, [highlightPath, highlightLayer]);
 
   return (
     <div>
@@ -327,40 +401,69 @@ export default function ArchitecturePage() {
         </div>
       </div>
 
-      {/* Retrieval path selector */}
-      <div className="bg-white rounded-lg border border-slate-200 p-4 mb-4">
-        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Highlight Retrieval Path</p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setHighlightPath(null)}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              highlightPath === null
-                ? 'bg-slate-800 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Show All
-          </button>
-          {RETRIEVAL_PATHS.map((path) => (
+      {/* Filter selectors — side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        {/* Retrieval path selector */}
+        <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Highlight Retrieval Path</p>
+          <div className="flex flex-wrap gap-2">
             <button
-              key={path.id}
-              onClick={() => setHighlightPath(highlightPath === path.id ? null : path.id)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors`}
-              style={
-                highlightPath === path.id
-                  ? { backgroundColor: path.color, color: '#fff' }
-                  : { backgroundColor: '#F1F5F9', color: '#475569' }
-              }
+              onClick={() => { setHighlightPath(null); setHighlightLayer(null); }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                highlightPath === null && highlightLayer === null
+                  ? 'bg-slate-800 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
             >
-              {path.short} — {path.label}
+              Show All
             </button>
-          ))}
+            {RETRIEVAL_PATHS.map((path) => (
+              <button
+                key={path.id}
+                onClick={() => { setHighlightLayer(null); setHighlightPath(highlightPath === path.id ? null : path.id); }}
+                className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+                style={
+                  highlightPath === path.id
+                    ? { backgroundColor: path.color, color: '#fff' }
+                    : { backgroundColor: '#F1F5F9', color: '#475569' }
+                }
+              >
+                {path.short} — {path.label}
+              </button>
+            ))}
+          </div>
+          {highlightPath && (
+            <p className="text-xs text-slate-500 mt-2">
+              {RETRIEVAL_PATHS.find(p => p.id === highlightPath)?.description}
+            </p>
+          )}
         </div>
-        {highlightPath && (
-          <p className="text-xs text-slate-500 mt-2">
-            {RETRIEVAL_PATHS.find(p => p.id === highlightPath)?.description}
-          </p>
-        )}
+
+        {/* System layer selector */}
+        <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Highlight System Layer</p>
+          <div className="flex flex-wrap gap-2">
+            {SYSTEM_LAYERS.map((layer) => (
+              <button
+                key={layer.id}
+                onClick={() => { setHighlightPath(null); setHighlightLayer(highlightLayer === layer.id ? null : layer.id); }}
+                className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+                style={
+                  highlightLayer === layer.id
+                    ? { backgroundColor: layer.color, color: '#fff' }
+                    : { backgroundColor: '#F1F5F9', color: '#475569' }
+                }
+              >
+                {layer.label}
+              </button>
+            ))}
+          </div>
+          {highlightLayer && (
+            <p className="text-xs text-slate-500 mt-2">
+              {SYSTEM_LAYERS.find(l => l.id === highlightLayer)?.description}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Graph */}
@@ -407,32 +510,32 @@ export default function ArchitecturePage() {
             <tbody className="text-slate-700">
               <tr className="border-t border-slate-100">
                 <td className="py-3 px-4 font-medium"><span style={{ color: '#3B82F6' }}>V</span> — Weaviate Only</td>
-                <td className="py-3 px-4 text-xs">Hybrid Search → Reranker → Claude</td>
+                <td className="py-3 px-4 text-xs">Hybrid Search → Reranker + Census/Congress APIs → Claude</td>
                 <td className="py-3 px-4 text-xs">Simple factual lookups, fast responses</td>
                 <td className="py-3 px-4 text-center">{"⚡⚡⚡"}</td>
-                <td className="py-3 px-4 text-center">{"⬤◯◯"}</td>
-                <td className="py-3 px-4 text-center">{"◯◯◯"}</td>
-              </tr>
-              <tr className="border-t border-slate-100">
-                <td className="py-3 px-4 font-medium"><span style={{ color: '#10B981' }}>V+G</span> — + Graph</td>
-                <td className="py-3 px-4 text-xs">Hybrid Search + Neo4j Expansion → Reranker → Claude</td>
-                <td className="py-3 px-4 text-xs">Entity-centric queries, cross-document connections</td>
-                <td className="py-3 px-4 text-center">{"⚡⚡"}</td>
                 <td className="py-3 px-4 text-center">{"⬤⬤◯"}</td>
                 <td className="py-3 px-4 text-center">{"◯◯◯"}</td>
               </tr>
               <tr className="border-t border-slate-100">
+                <td className="py-3 px-4 font-medium"><span style={{ color: '#10B981' }}>V+G</span> — + Graph</td>
+                <td className="py-3 px-4 text-xs">Hybrid Search + Neo4j + Census/Congress APIs → Reranker → Claude</td>
+                <td className="py-3 px-4 text-xs">Entity-centric queries, cross-document connections</td>
+                <td className="py-3 px-4 text-center">{"⚡⚡"}</td>
+                <td className="py-3 px-4 text-center">{"⬤⬤⬤"}</td>
+                <td className="py-3 px-4 text-center">{"◯◯◯"}</td>
+              </tr>
+              <tr className="border-t border-slate-100">
                 <td className="py-3 px-4 font-medium"><span style={{ color: '#F59E0B' }}>V+W</span> — + Web</td>
-                <td className="py-3 px-4 text-xs">Hybrid Search + Firecrawl → Trust Weighting → Claude</td>
+                <td className="py-3 px-4 text-xs">Hybrid Search + Firecrawl + Census/Congress APIs → Trust Weighting → Claude</td>
                 <td className="py-3 px-4 text-xs">Current events, data not yet ingested</td>
                 <td className="py-3 px-4 text-center">{"⚡"}</td>
-                <td className="py-3 px-4 text-center">{"⬤◯◯"}</td>
+                <td className="py-3 px-4 text-center">{"⬤⬤◯"}</td>
                 <td className="py-3 px-4 text-center">{"⬤⬤⬤"}</td>
               </tr>
               <tr className="border-t border-slate-100">
                 <td className="py-3 px-4 font-medium"><span style={{ color: '#8B5CF6' }}>V+G+W</span> — All Sources</td>
-                <td className="py-3 px-4 text-xs">Hybrid Search + Neo4j + Firecrawl → Trust Weighting → Claude</td>
-                <td className="py-3 px-4 text-xs">Comprehensive answers, ablation testing</td>
+                <td className="py-3 px-4 text-xs">Weaviate + Neo4j + Firecrawl + Census API + Congress.gov API → Trust Weighting → Claude</td>
+                <td className="py-3 px-4 text-xs">Comprehensive answers with 6 source tiers (default for Q&A and Learn)</td>
                 <td className="py-3 px-4 text-center">{"⚡"}</td>
                 <td className="py-3 px-4 text-center">{"⬤⬤⬤"}</td>
                 <td className="py-3 px-4 text-center">{"⬤⬤⬤"}</td>
@@ -447,6 +550,8 @@ export default function ArchitecturePage() {
         <h3 className="text-base font-semibold text-slate-900 mb-4">Source Trust Hierarchy</h3>
         <div className="space-y-3">
           {[
+            { label: 'Congress.gov API', weight: 1.0, color: '#E11D48', desc: 'Official legislative data: bills, members, votes, CRS reports. Direct from Library of Congress.' },
+            { label: 'Census Bureau API', weight: 1.0, color: '#7C3AED', desc: 'Official statistical data: population, demographics, income, housing. ACS 5-Year Estimates.' },
             { label: 'Local (Weaviate + Neo4j)', weight: 1.0, color: '#3B82F6', desc: 'Ingested, parsed, enriched, and quality-checked documents. Highest fidelity.' },
             { label: 'USAFacts.org', weight: 0.85, color: '#10B981', desc: 'Curated government data with editorial quality. Recency bonus +0.15 for time-sensitive queries.' },
             { label: '.gov Web Search', weight: 0.70, color: '#F59E0B', desc: 'Authoritative government sources, broader scope. Recency bonus +0.25 for time-sensitive queries.' },

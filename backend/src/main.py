@@ -21,7 +21,7 @@ print(f"[DEBUG] ANTHROPIC_API_KEY loaded: {bool(api_key)}")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import agencies, asset_reports, assets, census, data, experiments, graph, metrics, neo4j_status, search, stats, weaviate_status, workflows
+from src.api.routes import agencies, asset_reports, assets, census, congress, data, experiments, graph, metrics, neo4j_status, search, stats, weaviate_status, workflows
 from src.models.domain import Base
 import src.models.census  # noqa: F401 — register Census tables with SQLAlchemy metadata
 from src.services.database import engine
@@ -138,6 +138,10 @@ tags_metadata = [
         "name": "census",
         "description": "U.S. Census Bureau Data API. Search geographies, data tables, datasets, and fetch aggregate statistics. Includes a Claude-powered natural language query endpoint.",
     },
+    {
+        "name": "congress",
+        "description": "Congress.gov API. Search immigration bills, get bill details and text, list members, view sponsored legislation, and access CRS reports.",
+    },
 ]
 
 # Create FastAPI application
@@ -223,6 +227,7 @@ app.include_router(neo4j_status.router, prefix="/api/neo4j", tags=["neo4j"])
 app.include_router(data.router, prefix="/api/data", tags=["data"])
 app.include_router(experiments.router, prefix="/api/experiments", tags=["experiments"])
 app.include_router(census.router, prefix="/api/census", tags=["census"])
+app.include_router(congress.router, prefix="/api/congress", tags=["congress"])
 
 
 @app.get("/", tags=["root"], summary="API Information")

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import api from '../api/client';
 
 interface CatalogResult {
-  source: 'local' | 'gov' | 'usafacts';
+  source: 'local' | 'gov' | 'usafacts' | 'census' | 'congress';
   title: string;
   agency: string;
   asset: string | null;
@@ -24,6 +24,8 @@ interface CatalogResponse {
 }
 
 const SOURCE_STYLES: Record<string, { label: string; bg: string; dot: string; border: string }> = {
+  congress: { label: 'Congress.gov API', bg: 'bg-rose-50', dot: 'bg-rose-500', border: 'border-rose-200' },
+  census: { label: 'Census API', bg: 'bg-purple-50', dot: 'bg-purple-500', border: 'border-purple-200' },
   local: { label: 'Local Document', bg: 'bg-blue-50', dot: 'bg-blue-500', border: 'border-blue-200' },
   gov: { label: '.gov Website', bg: 'bg-green-50', dot: 'bg-green-500', border: 'border-green-200' },
   usafacts: { label: 'USAFacts.org', bg: 'bg-amber-50', dot: 'bg-amber-500', border: 'border-amber-200' },
@@ -33,11 +35,11 @@ const LIMIT_OPTIONS = [5, 10, 15, 20];
 
 const SUGGESTIONS = [
   { label: 'Immigration backlogs', query: 'USCIS backlog' },
-  { label: 'H-1B visa data', query: 'H-1B visa statistics' },
-  { label: 'Immigration trends', query: 'immigration trends' },
-  { label: 'Crime statistics', query: 'crime rate US' },
-  { label: 'DACA program', query: 'DACA recipients' },
+  { label: 'Foreign-born population', query: 'foreign born population by state' },
+  { label: 'Immigration bills', query: 'immigration bill legislation congress' },
+  { label: 'Median household income', query: 'median household income immigrants' },
   { label: 'Refugee admissions', query: 'refugee admissions' },
+  { label: 'Naturalization trends', query: 'naturalization citizenship statistics' },
 ];
 
 export default function CatalogPage() {
@@ -88,7 +90,7 @@ export default function CatalogPage() {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search documents, .gov sites, and USAFacts.org..."
+                  placeholder="Search documents, Census data, .gov sites, and USAFacts..."
                   className="flex-1 text-sm text-slate-800 placeholder-slate-400 bg-transparent outline-none"
                   disabled={isLoading}
                 />
@@ -315,18 +317,31 @@ function ResultCard({ result, rank }: { result: CatalogResult; rank: number }) {
           </div>
 
           {/* Source URL */}
-          {result.source === 'local' && result.url && (
+          {(result.source === 'local' || result.source === 'census') && result.url && (
             <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-[#4A7C59]/60 hover:text-[#4A7C59] truncate block mt-1">
               {result.url}
             </a>
           )}
 
-          {/* Snippet */}
-          {result.snippet && (
+          {/* Snippet — Census/Congress data gets structured rendering */}
+          {result.snippet && (result.source === 'census' || result.source === 'congress') ? (
+            <div className="mt-2.5 text-xs text-slate-600 leading-relaxed space-y-0.5">
+              {result.snippet.split('\n').map((line, li) => {
+                if (!line.trim()) return null;
+                if (line.startsWith('**') && line.includes('**'))
+                  return <p key={li} className="font-semibold text-slate-800 mb-1">{line.replace(/\*\*/g, '')}</p>;
+                if (line.startsWith('- '))
+                  return <p key={li} className="pl-3 text-slate-600">{line.slice(2)}</p>;
+                if (line.startsWith('Source:'))
+                  return <p key={li} className="text-[10px] text-slate-400 mt-1.5">{line}</p>;
+                return <p key={li}>{line}</p>;
+              })}
+            </div>
+          ) : result.snippet ? (
             <p className="mt-2.5 text-xs text-slate-600 leading-relaxed line-clamp-3">
               {result.snippet}
             </p>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

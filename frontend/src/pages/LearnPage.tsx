@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { searchQuery, type TraceStep, type AnswerMetrics } from '../api/client';
+import { searchQuery, type TraceStep, type AnswerMetrics, type ChartSpec } from '../api/client';
+import ChartRenderer from '../components/ChatBot/ChartRenderer';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,16 +21,16 @@ interface Choice {
 
 interface Slide {
   id: string;
-  type: 'welcome' | 'answer' | 'input';
+  type: 'welcome' | 'answer';
   title?: string;
   subtitle?: string;
   answer?: string;
   sources?: { title: string; agency: string; url?: string | null }[];
   choices?: Choice[];
   isLoading?: boolean;
-  inputPlaceholder?: string;
   trace?: TraceStep[];
   metrics?: AnswerMetrics | null;
+  charts?: ChartSpec[];
 }
 
 // ---------------------------------------------------------------------------
@@ -195,10 +196,6 @@ const STARTER_CHOICES: Choice[] = [
     spark: [{ label: 'I-130', value: 24 }, { label: 'I-485', value: 18 }, { label: 'I-140', value: 14 }, { label: 'N-400', value: 10 }, { label: 'I-765', value: 7 }],
   },
   {
-    label: 'State by state', subtitle: 'How does immigration affect your state?',
-    query: '__STATE_INPUT__', icon: 'map',
-  },
-  {
     label: 'Refugee & asylum', subtitle: 'Programs for those seeking protection',
     query: 'What are the current refugee and asylum statistics in the United States?', icon: 'users',
     spark: [{ label: '19', value: 30 }, { label: '20', value: 12 }, { label: '21', value: 11 }, { label: '22', value: 25 }, { label: '23', value: 60 }],
@@ -212,6 +209,10 @@ const STARTER_CHOICES: Choice[] = [
     label: 'DACA & TPS', subtitle: 'Temporary protection programs',
     query: 'What is the current status of DACA and TPS programs?', icon: 'shield',
     spark: [{ label: '18', value: 690 }, { label: '19', value: 650 }, { label: '20', value: 640 }, { label: '21', value: 616 }, { label: '22', value: 594 }, { label: '23', value: 580 }],
+  },
+  {
+    label: 'Immigration in Congress', subtitle: 'Bills and legislation in progress',
+    query: 'What immigration bills are currently before Congress and what is their status?', icon: 'building',
   },
 ];
 
@@ -297,39 +298,23 @@ export default function LearnPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [stateInput, setStateInput] = useState('');
   const [liveTraceStep, setLiveTraceStep] = useState(-1);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const indexRef = useRef(0);
 
-  // Smooth transition when index changes
-  useEffect(() => {
-    if (containerRef.current) {
-      // Each slide is (100 / slides.length)% of the container width.
-      // To show slide N, shift by N * (100 / slides.length)%.
-      const pct = (currentIndex * 100) / slides.length;
-      containerRef.current.style.transform = `translateX(-${pct}%)`;
-    }
-  }, [currentIndex, slides.length]);
+  // Keep ref in sync
+  useEffect(() => { indexRef.current = currentIndex; }, [currentIndex]);
 
   const addSlideAndNavigate = useCallback((slide: Slide) => {
+    const idx = indexRef.current;
     setSlides(prev => {
-      // Remove any slides after current index (branching)
-      const trimmed = prev.slice(0, currentIndex + 1);
+      const trimmed = prev.slice(0, idx + 1);
       return [...trimmed, slide];
     });
-    setCurrentIndex(prev => prev + 1);
-  }, [currentIndex]);
+    const next = idx + 1;
+    setCurrentIndex(next);
+    indexRef.current = next;
+  }, []);
 
   const handleChoice = useCallback(async (choice: Choice) => {
-    if (choice.query === '__STATE_INPUT__') {
-      addSlideAndNavigate({
-        id: `input-${Date.now()}`,
-        type: 'input',
-        title: 'Where do you live?',
-        subtitle: 'Tell us your state to see local immigration data',
-        inputPlaceholder: 'e.g., California, Texas, New York...',
-      });
-      return;
-    }
-
     // Add loading slide
     const loadingSlide: Slide = {
       id: `answer-${Date.now()}`,
@@ -366,6 +351,7 @@ export default function LearnPage() {
               choices: followUps,
               trace: result.trace,
               metrics: result.metrics,
+              charts: result.charts,
             }
           : s
       ));
@@ -388,12 +374,17 @@ export default function LearnPage() {
   }, [handleChoice]);
 
   const goBack = useCallback(() => {
-    if (currentIndex > 0) setCurrentIndex(prev => prev - 1);
-  }, [currentIndex]);
+    setCurrentIndex(prev => {
+      const next = Math.max(0, prev - 1);
+      indexRef.current = next;
+      return next;
+    });
+  }, []);
 
   const goHome = useCallback(() => {
     setSlides([{ id: 'welcome', type: 'welcome', choices: STARTER_CHOICES }]);
     setCurrentIndex(0);
+    indexRef.current = 0;
   }, []);
 
   return (
@@ -423,9 +414,11 @@ export default function LearnPage() {
       {/* Horizontal slide container */}
       <div className="flex-1 overflow-hidden relative">
         <div
-          ref={containerRef}
           className="flex h-full transition-transform duration-500 ease-in-out"
-          style={{ width: `${slides.length * 100}%` }}
+          style={{
+            width: `${slides.length * 100}%`,
+            transform: `translateX(-${(currentIndex * 100) / slides.length}%)`,
+          }}
         >
           {slides.map((slide) => (
             <div
@@ -438,16 +431,9 @@ export default function LearnPage() {
                   <WelcomeSlide
                     choices={slide.choices || []}
                     onChoice={handleChoice}
-                  />
-                )}
-                {slide.type === 'input' && (
-                  <InputSlide
-                    title={slide.title || ''}
-                    subtitle={slide.subtitle || ''}
-                    placeholder={slide.inputPlaceholder || ''}
-                    value={stateInput}
-                    onChange={setStateInput}
-                    onSubmit={() => { handleStateSubmit(stateInput); setStateInput(''); }}
+                    stateInput={stateInput}
+                    onStateChange={setStateInput}
+                    onStateSubmit={() => { handleStateSubmit(stateInput); setStateInput(''); }}
                   />
                 )}
                 {slide.type === 'answer' && (
@@ -470,14 +456,42 @@ export default function LearnPage() {
 // Slide components
 // ---------------------------------------------------------------------------
 
-function WelcomeSlide({ choices, onChoice }: { choices: Choice[]; onChoice: (c: Choice) => void }) {
+function WelcomeSlide({ choices, onChoice, stateInput, onStateChange, onStateSubmit }: {
+  choices: Choice[];
+  onChoice: (c: Choice) => void;
+  stateInput: string;
+  onStateChange: (v: string) => void;
+  onStateSubmit: () => void;
+}) {
   return (
     <div className="flex flex-col items-center pt-8">
       <h1 className="text-4xl font-bold text-[#4A7C59] mb-1">Learn</h1>
       <h2 className="text-2xl font-semibold text-slate-800 mb-2">Explore immigration in the US</h2>
-      <p className="text-sm text-slate-500 mb-10">Choose a topic to start your guided learning journey</p>
+      <p className="text-sm text-slate-500 mb-6">Choose a topic to start your guided learning journey</p>
 
-      {/* Topic cards — 2x4 grid */}
+      {/* State search input — centered above cards */}
+      <form onSubmit={(e) => { e.preventDefault(); onStateSubmit(); }} className="w-full max-w-md mb-8">
+        <p className="text-xs font-medium text-slate-500 text-center mb-2">How does immigration look in your state?</p>
+        <div className="flex items-center bg-white rounded-full border border-slate-200 shadow-sm px-5 py-2.5 focus-within:ring-2 focus-within:ring-[#4A7C59]/30 transition-all">
+          <CardIcon name="map" className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" />
+          <input
+            type="text"
+            value={stateInput}
+            onChange={(e) => onStateChange(e.target.value)}
+            placeholder="Tell us where do you live"
+            className="flex-1 text-sm text-slate-800 placeholder-slate-400 bg-transparent outline-none"
+          />
+          <button
+            type="submit"
+            disabled={!stateInput.trim()}
+            className="w-7 h-7 rounded-full bg-[#4A7C59] text-white flex items-center justify-center hover:bg-[#3D6B4A] disabled:opacity-30 transition-colors flex-shrink-0 ml-2"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+          </button>
+        </div>
+      </form>
+
+      {/* Topic cards */}
       <div className="grid grid-cols-2 gap-4 w-full max-w-2xl">
         {choices.map((choice) => (
           <button
@@ -509,41 +523,6 @@ function WelcomeSlide({ choices, onChoice }: { choices: Choice[]; onChoice: (c: 
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-function InputSlide({
-  title, subtitle, placeholder, value, onChange, onSubmit,
-}: {
-  title: string; subtitle: string; placeholder: string;
-  value: string; onChange: (v: string) => void; onSubmit: () => void;
-}) {
-  return (
-    <div className="flex flex-col items-center pt-8">
-      <h1 className="text-4xl font-bold text-[#4A7C59] mb-1">Learn</h1>
-      <h2 className="text-2xl font-semibold text-slate-800 mb-2">{title}</h2>
-      <p className="text-sm text-slate-500 mb-8">{subtitle}</p>
-
-      <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="w-full max-w-md">
-        <div className="flex items-center bg-white rounded-full border border-slate-200 shadow-sm px-5 py-3 focus-within:ring-2 focus-within:ring-[#4A7C59]/30 transition-all">
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="flex-1 text-sm text-slate-800 placeholder-slate-400 bg-transparent outline-none"
-            autoFocus
-          />
-          <button
-            type="submit"
-            disabled={!value.trim()}
-            className="w-8 h-8 rounded-full bg-[#4A7C59] text-white flex items-center justify-center hover:bg-[#3D6B4A] disabled:opacity-30 transition-colors flex-shrink-0 ml-2"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
-          </button>
-        </div>
-      </form>
     </div>
   );
 }
@@ -599,6 +578,13 @@ function AnswerSlide({ slide, onChoice, liveTraceStep }: { slide: Slide; onChoic
         )}
       </div>
 
+      {/* Charts */}
+      {slide.charts && slide.charts.length > 0 && (
+        <div className="mb-4">
+          <ChartRenderer charts={slide.charts} />
+        </div>
+      )}
+
       {/* Quality metrics */}
       {slide.metrics && <LearnMetricsPanel metrics={slide.metrics} />}
 
@@ -645,7 +631,7 @@ function AnswerSlide({ slide, onChoice, liveTraceStep }: { slide: Slide; onChoic
 
 const LEARN_LIVE_STAGES = [
   { stage: 'Topic Analysis', description: 'Understanding your topic and formulating search queries...' },
-  { stage: 'Document Retrieval', description: 'Searching all sources: knowledge base, graph, and web...' },
+  { stage: 'Document Retrieval', description: 'Searching all sources: knowledge base, graph, Census, Congress, and web...' },
   { stage: 'Context Assembly', description: 'Loading full documents and extracting relevant sections...' },
   { stage: 'Answer Synthesis', description: 'Claude is composing an educational answer from sources...' },
 ];
