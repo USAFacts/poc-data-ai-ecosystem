@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -156,6 +157,13 @@ class AnswerMetrics(BaseModel):
     cscs: float = 1.0   # Cross-Store Consistency Score
 
 
+class TraceStep(BaseModel):
+    """A single step in the reasoning trace."""
+    stage: str
+    detail: str
+    duration_ms: int = 0
+
+
 class SearchResult(BaseModel):
     """Search result with attribution."""
     query_decomposition: QueryDecomposition
@@ -167,6 +175,7 @@ class SearchResult(BaseModel):
     charts: list[ChartSpec] = []
     claude_used: bool = False  # Whether Claude API was used successfully
     metrics: AnswerMetrics | None = None
+    trace: list[TraceStep] = []
 
 
 def format_data_volume(bytes_size: int) -> str:
@@ -1492,19 +1501,56 @@ def search_query(request: QueryRequest, storage: Storage, db: DBSession) -> Sear
     - Query decomposition showing extracted entities
     - Usage metrics (tokens, data volume)
     """
-    # Decompose the query using Claude
-    decomposition, decompose_tokens = decompose_query_with_claude(request.query)
+    trace: list[TraceStep] = []
 
-    # Search documents (includes full docs for rich context)
+    # Step 1: Decompose query
+    t0 = time.perf_counter()
+    decomposition, decompose_tokens = decompose_query_with_claude(request.query)
+    dt = int((time.perf_counter() - t0) * 1000)
+    entities_summary = ", ".join(e.text for e in decomposition.entities) if decomposition.entities else "none"
+    trace.append(TraceStep(
+        stage="Query Decomposition",
+        detail=f"Intent: {decomposition.intent} | Entities: {entities_summary} | Keywords: {', '.join(decomposition.keywords[:5])}",
+        duration_ms=dt,
+    ))
+
+    # Step 2: Search documents
+    t0 = time.perf_counter()
     documents, data_metrics = search_documents(storage, db, decomposition, mode=request.mode)
+    dt = int((time.perf_counter() - t0) * 1000)
+
+    # Build retrieval detail from mode
+    mode_map = {"v": "Weaviate", "vg": "Weaviate + Graph", "vw": "Weaviate + Web", "vgw": "All Sources"}
+    effective_mode = request.mode or "vg"
+    mode_label = mode_map.get(effective_mode, effective_mode)
+    web_count = data_metrics.get("web_results_added", 0)
+    retrieval_detail = f"Mode: {mode_label} | Found {data_metrics.get('documents_searched', 0)} candidates → {data_metrics.get('documents_returned', 0)} results"
+    if web_count:
+        retrieval_detail += f" ({web_count} from web)"
+    trace.append(TraceStep(stage="Retrieval & Ranking", detail=retrieval_detail, duration_ms=dt))
 
     # Extract full docs for rich context (if available)
     full_docs = data_metrics.pop("full_docs", [])
 
-    # Generate answer using Claude with rich context
+    if full_docs:
+        trace.append(TraceStep(
+            stage="Document Loading",
+            detail=f"Loaded {len(full_docs)} full documents from MinIO for context",
+            duration_ms=0,
+        ))
+
+    # Step 3: Generate answer
+    t0 = time.perf_counter()
     answer, confidence, answer_tokens, chart_specs, claude_context = generate_answer_with_claude(
         request.query, decomposition, documents, full_docs
     )
+    dt = int((time.perf_counter() - t0) * 1000)
+    charts_note = f" | {len(chart_specs)} chart(s)" if chart_specs else ""
+    trace.append(TraceStep(
+        stage="Answer Synthesis",
+        detail=f"Claude Sonnet 4.5 | {answer_tokens.get('input_tokens', 0)} in → {answer_tokens.get('output_tokens', 0)} out tokens{charts_note}",
+        duration_ms=dt,
+    ))
 
     # Aggregate token usage
     total_input_tokens = decompose_tokens["input_tokens"] + answer_tokens["input_tokens"]
@@ -1556,8 +1602,15 @@ def search_query(request: QueryRequest, storage: Storage, db: DBSession) -> Sear
         }
         for d in documents
     ]
+    t0 = time.perf_counter()
     raw_metrics = compute_answer_metrics(answer, doc_dicts, request.query)
     answer_metrics = AnswerMetrics(**raw_metrics)
+    dt = int((time.perf_counter() - t0) * 1000)
+    trace.append(TraceStep(
+        stage="Quality Assessment",
+        detail=f"STS={raw_metrics['sts']:.2f} NVS={raw_metrics['nvs']:.2f} HDS={raw_metrics['hds']} CSCS={raw_metrics['cscs']:.2f}",
+        duration_ms=dt,
+    ))
 
     logger.info(f"Search completed: claude_used={claude_used}, tokens={total_tokens}, docs={len(documents)}")
 
@@ -1571,6 +1624,7 @@ def search_query(request: QueryRequest, storage: Storage, db: DBSession) -> Sear
         usage=usage,
         claude_used=claude_used,
         metrics=answer_metrics,
+        trace=trace,
     )
 
 

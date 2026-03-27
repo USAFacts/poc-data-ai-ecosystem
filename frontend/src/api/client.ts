@@ -122,6 +122,12 @@ export interface AnswerMetrics {
   cscs: number;  // Cross-Store Consistency Score (0-1)
 }
 
+export interface TraceStep {
+  stage: string;
+  detail: string;
+  duration_ms: number;
+}
+
 export interface SearchResult {
   query_decomposition: QueryDecomposition;
   documents: DocumentReference[];
@@ -132,6 +138,7 @@ export interface SearchResult {
   claude_used: boolean;
   charts: ChartSpec[];
   metrics: AnswerMetrics | null;
+  trace: TraceStep[];
 }
 
 export interface AvailableEntities {

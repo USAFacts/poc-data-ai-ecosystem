@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { searchQuery, fetchAvailableEntities, type SearchResult, type DocumentReference, type AnswerMetrics } from '../api/client';
+import { searchQuery, fetchAvailableEntities, type SearchResult, type DocumentReference, type AnswerMetrics, type TraceStep } from '../api/client';
 import ChartRenderer from '../components/ChatBot/ChartRenderer';
 
 interface Message {
@@ -23,6 +23,7 @@ export default function ChatbotPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMode, setSelectedMode] = useState('vg');
+  const [liveTraceStep, setLiveTraceStep] = useState(-1);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch available entities for suggestions
@@ -54,9 +55,20 @@ export default function ChatbotPage() {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setLiveTraceStep(0);
+
+    // Animate through stages while waiting for the response
+    const stageTimers = [
+      setTimeout(() => setLiveTraceStep(1), 2000),   // Retrieval after ~2s
+      setTimeout(() => setLiveTraceStep(2), 4000),   // Doc loading after ~4s
+      setTimeout(() => setLiveTraceStep(3), 6000),   // Synthesis after ~6s
+    ];
 
     try {
       const result = await searchQuery(userMessage.content, selectedMode);
+
+      // Clear stage timers
+      stageTimers.forEach(clearTimeout);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -67,6 +79,7 @@ export default function ChatbotPage() {
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
+      stageTimers.forEach(clearTimeout);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -76,6 +89,7 @@ export default function ChatbotPage() {
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      setLiveTraceStep(-1);
     }
   };
 
@@ -135,6 +149,11 @@ export default function ChatbotPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Completed reasoning trace */}
+                {message.searchResult?.trace && message.searchResult.trace.length > 0 && (
+                  <CompletedTrace steps={message.searchResult.trace} />
+                )}
 
                 {/* Chart visualizations */}
                 {message.searchResult?.charts && message.searchResult.charts.length > 0 && (
@@ -228,18 +247,7 @@ export default function ChatbotPage() {
             ))}
 
             {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                    <span className="text-xs text-orange-700">Claude is analyzing your question and searching documents...</span>
-                  </div>
-                </div>
-              </div>
+              <LiveTrace currentStep={liveTraceStep} mode={selectedMode} />
             )}
             <div ref={messagesEndRef} />
           </div>
@@ -383,6 +391,112 @@ export default function ChatbotPage() {
 
         </div>
       </div>
+    </div>
+  );
+}
+
+// Live Trace — shown during processing, vertical with animation
+const LIVE_STAGES = [
+  { stage: 'Query Decomposition', description: 'Analyzing question, extracting entities and intent...' },
+  { stage: 'Retrieval & Ranking', description: 'Searching documents, reranking by relevance...' },
+  { stage: 'Document Loading', description: 'Loading full document context from storage...' },
+  { stage: 'Answer Synthesis', description: 'Claude is generating an answer from sources...' },
+];
+
+function LiveTrace({ currentStep, mode }: { currentStep: number; mode: string }) {
+  const modeLabels: Record<string, string> = { v: 'Weaviate', vg: 'Weaviate + Graph', vw: 'Weaviate + Web', vgw: 'All Sources' };
+
+  return (
+    <div className="ml-4 mb-2">
+      <div className="space-y-0">
+        {LIVE_STAGES.map((stage, i) => {
+          const isActive = i === currentStep;
+          const isDone = i < currentStep;
+          const isPending = i > currentStep;
+
+          return (
+            <div key={i} className="flex items-start gap-2.5 py-1.5">
+              {/* Vertical line + dot */}
+              <div className="flex flex-col items-center w-5 mt-0.5">
+                <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${
+                  isDone ? 'bg-green-500 border-green-500' :
+                  isActive ? 'bg-blue-500 border-blue-500 animate-pulse' :
+                  'bg-white border-slate-300'
+                }`}>
+                  {isDone && (
+                    <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </div>
+                {i < LIVE_STAGES.length - 1 && (
+                  <div className={`w-0.5 h-5 ${isDone ? 'bg-green-300' : 'bg-slate-200'}`} />
+                )}
+              </div>
+
+              {/* Content */}
+              <div className={`flex-1 ${isPending ? 'opacity-40' : ''}`}>
+                <p className={`text-xs font-medium ${isActive ? 'text-blue-700' : isDone ? 'text-green-700' : 'text-slate-400'}`}>
+                  {stage.stage}
+                  {i === 0 && <span className="font-normal text-slate-400 ml-1">({modeLabels[mode] || mode})</span>}
+                </p>
+                {(isActive || isDone) && (
+                  <p className={`text-[11px] ${isActive ? 'text-blue-500' : 'text-green-500'}`}>
+                    {isActive ? stage.description : 'Done'}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Completed Trace — shown after answer, compact vertical with real outcomes
+function CompletedTrace({ steps }: { steps: TraceStep[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const totalMs = steps.reduce((sum, s) => sum + s.duration_ms, 0);
+  const totalStr = totalMs < 1000 ? `${totalMs}ms` : `${(totalMs / 1000).toFixed(1)}s`;
+
+  return (
+    <div className="ml-4 mt-2">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <svg className={`w-3 h-3 transition-transform ${expanded ? 'rotate-90' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        <span className="font-medium">Reasoning trace</span>
+        <span>({steps.length} steps, {totalStr})</span>
+      </button>
+
+      {expanded && (
+        <div className="mt-2 space-y-0">
+          {steps.map((step, i) => {
+            const dur = step.duration_ms;
+            const timeStr = dur === 0 ? '' : dur < 1000 ? `${dur}ms` : `${(dur / 1000).toFixed(1)}s`;
+
+            return (
+              <div key={i} className="flex items-start gap-2.5 py-1">
+                <div className="flex flex-col items-center w-5 mt-0.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0" />
+                  {i < steps.length - 1 && <div className="w-0.5 h-4 bg-green-200" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-medium text-slate-700">{step.stage}</span>
+                    {timeStr && <span className="text-[10px] text-slate-400">{timeStr}</span>}
+                  </div>
+                  <p className="text-[10px] text-slate-500 truncate">{step.detail}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
