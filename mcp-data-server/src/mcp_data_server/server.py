@@ -22,7 +22,21 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
 mcp = FastMCP(
     "Gov Data Sources",
-    instructions="You have direct access to government data across 5 systems: Weaviate (vector search over 37 documents and 2000+ chunks), Neo4j (knowledge graph with entities, agencies, time periods), MinIO (raw document files — PDF, XLSX, CSV), PostgreSQL (pipeline metadata), and live web search via Firecrawl (.gov websites and USAFacts.org). Use search_documents or search_chunks for ingested data, find_entity or query_graph for relationships, read_document for full content, and search_gov_websites or search_usafacts for current information not yet ingested.",
+    instructions="""You have direct access to government data across 5 systems:
+- Weaviate: vector search over 37 ingested government documents and 2000+ text chunks
+- Neo4j: knowledge graph with entities, agencies, time periods, and relationships
+- MinIO: raw document files (PDF, XLSX, CSV) in landing/parsed/enrichment zones
+- PostgreSQL: pipeline metadata, assets, agencies, workflows
+- Live web search via Firecrawl: .gov websites and USAFacts.org
+
+IMPORTANT RULES:
+1. ALWAYS cite your sources. For every factual claim, include where the information came from:
+   - For ingested documents: cite the document title and agency (e.g., "according to the USCIS Quarterly Forms report")
+   - For .gov web results: include the page title AND URL (e.g., "per USCIS Processing Times (https://egov.uscis.gov/processing-times/)")
+   - For USAFacts results: include the page title AND URL (e.g., "according to USAFacts (https://usafacts.org/...)")
+2. When answering questions about current facts (who holds a position, latest policies, current statistics), ALWAYS use search_gov_websites or search_usafacts to get up-to-date information — the ingested documents may be outdated.
+3. Cross-reference multiple sources when possible. Use ingested documents for detailed statistics and web search for current context.
+4. If you cannot find information in any source, say so clearly rather than guessing.""",
 )
 
 # ---------------------------------------------------------------------------
@@ -86,10 +100,13 @@ def _get_pg_engine():
 
 @mcp.tool()
 def search_documents(query: str, limit: int = 10) -> str:
-    """Search government documents using hybrid search (BM25 + vector similarity).
+    """Search government documents using keyword search (BM25).
 
     Searches across 37 ingested government documents from agencies like USCIS, DHS, OHSS.
     Returns document titles, agencies, summaries, topics, and relevance scores.
+
+    When using results in your answer, always cite the document title and agency
+    (e.g., "according to the USCIS Quarterly Forms report from USCIS").
 
     Args:
         query: Natural language search query (e.g., "H-1B visa statistics" or "immigration backlog")
@@ -584,6 +601,8 @@ def search_gov_websites(query: str, limit: int = 5) -> str:
     Examples: current USCIS director, latest fee schedule, processing times,
     recent executive orders, current immigration policy.
 
+    IMPORTANT: Always cite results with the page title AND full URL in your response.
+
     Args:
         query: Search query (e.g., "USCIS processing times I-130")
         limit: Maximum results (default 5, max 10)
@@ -609,6 +628,8 @@ def search_usafacts(query: str, limit: int = 5) -> str:
     - Crime statistics
     - Economic indicators
     - Any topic where you need curated, trustworthy US data
+
+    IMPORTANT: Always cite results with the page title AND full URL in your response.
 
     Args:
         query: Search query (e.g., "immigration trends", "crime rate by state")
@@ -680,7 +701,29 @@ def agencies_resource() -> str:
 # ---------------------------------------------------------------------------
 
 def main():
-    mcp.run()
+    """Run the MCP server.
+
+    Supports two transport modes:
+    - stdio (default): For Claude Desktop and Claude Code
+    - http: For OpenAI ChatGPT Apps SDK (exposes /mcp endpoint)
+
+    Set MCP_TRANSPORT=http to run in HTTP mode, or pass --http flag.
+    """
+    import sys
+
+    use_http = os.getenv("MCP_TRANSPORT", "").lower() == "http" or "--http" in sys.argv
+
+    if use_http:
+        port = int(os.getenv("MCP_PORT", "8787"))
+        # Set host/port on the FastMCP instance before running
+        mcp.settings.host = "0.0.0.0"
+        mcp.settings.port = port
+        print(f"Starting MCP server in HTTP mode on port {port}")
+        print(f"MCP endpoint: http://localhost:{port}/mcp")
+        print(f"Use ngrok to expose: ngrok http {port}")
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":

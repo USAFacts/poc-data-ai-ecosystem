@@ -4,6 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { DashboardIcon, AgencyIcon, AssetIcon, ChevronIcon } from '../Icons';
 import { fetchDashboardStats } from '../../api/client';
 
+interface SidebarProps {
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+}
+
 const navItems = [
   { path: '/', label: 'Executive Dashboard', Icon: DashboardIcon },
   { path: '/agencies', label: 'Agencies', Icon: AgencyIcon },
@@ -13,7 +18,7 @@ const navItems = [
   { path: '/neo4j', label: 'Neo4j Graph', Icon: Neo4jIcon },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
   const [isIntelligenceExpanded, setIsIntelligenceExpanded] = useState(true);
   const [isInteractiveExpanded, setIsInteractiveExpanded] = useState(false);
   const [isLabExpanded, setIsLabExpanded] = useState(false);
@@ -25,30 +30,57 @@ export default function Sidebar() {
   });
 
   return (
-    <aside className="w-60 bg-slate-900 text-white flex flex-col min-h-screen">
-      <div className="p-6">
-        <h1 className="text-lg font-bold">Gov Data Studio</h1>
+    <aside
+      className={`${isCollapsed ? 'w-[60px]' : 'w-60'} bg-[#1B2A4A] text-white flex flex-col min-h-screen transition-all duration-300 ease-in-out overflow-hidden`}
+    >
+      {/* Header with toggle */}
+      <div className="flex items-center justify-between p-4">
+        <div className={`flex items-center gap-2 ${isCollapsed ? 'hidden' : ''}`}>
+          <UsaFactsLogo className="w-6 h-6 flex-shrink-0" />
+          <h1 className="text-lg font-bold whitespace-nowrap">Studio</h1>
+        </div>
+        {isCollapsed && <UsaFactsLogo className="w-5 h-5 flex-shrink-0 mx-auto" />}
+        <button
+          onClick={onToggleCollapse}
+          className="p-1.5 rounded-md hover:bg-white/[0.08] transition-colors flex-shrink-0"
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <svg
+            className={`w-4 h-4 text-slate-300 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
       </div>
 
       {/* Collapsible Intelligence Platform Section */}
       <div className="mt-2">
         <button
-          onClick={() => setIsIntelligenceExpanded(!isIntelligenceExpanded)}
-          className="w-full flex items-center justify-between px-6 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+          onClick={() => !isCollapsed && setIsIntelligenceExpanded(!isIntelligenceExpanded)}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'justify-between px-6'} py-3 text-sm font-medium text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors`}
+          title={isCollapsed ? 'Intelligence Platform' : undefined}
         >
-          <div className="flex items-center gap-2">
-            <PlatformIcon className="w-[18px] h-[18px]" />
-            <span>Intelligence Platform</span>
+          <div className={`flex items-center ${isCollapsed ? '' : 'gap-2'}`}>
+            <PlatformIcon className="w-[18px] h-[18px] flex-shrink-0" />
+            {!isCollapsed && <span className="whitespace-nowrap">Intelligence Platform</span>}
           </div>
-          <ChevronIcon
-            className={`w-4 h-4 transition-transform duration-200 ${isIntelligenceExpanded ? 'rotate-180' : ''}`}
-          />
+          {!isCollapsed && (
+            <ChevronIcon
+              className={`w-4 h-4 transition-transform duration-200 ${isIntelligenceExpanded ? 'rotate-180' : ''}`}
+            />
+          )}
         </button>
 
         {/* Collapsible Content */}
         <div
           className={`overflow-hidden transition-all duration-300 ease-in-out ${
-            isIntelligenceExpanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
+            isIntelligenceExpanded && !isCollapsed ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
           }`}
         >
           {/* Pages */}
@@ -58,8 +90,8 @@ export default function Sidebar() {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
-                    isActive ? 'bg-blue-600 text-white' : ''
+                  `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                    isActive ? 'bg-[#0A3161] text-white' : ''
                   }`
                 }
               >
@@ -118,72 +150,159 @@ export default function Sidebar() {
             </div>
           )}
         </div>
+
+        {/* Collapsed nav icons for Intelligence section */}
+        {isCollapsed && (
+          <nav className="flex flex-col items-center">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                title={item.label}
+                className={({ isActive }) =>
+                  `flex items-center justify-center w-full py-2.5 text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                    isActive ? 'bg-[#0A3161] text-white' : ''
+                  }`
+                }
+              >
+                <item.Icon className="w-[16px] h-[16px]" />
+              </NavLink>
+            ))}
+          </nav>
+        )}
       </div>
 
       {/* Collapsible Interactive Platform Section */}
       <div className="mt-2">
         <button
-          onClick={() => setIsInteractiveExpanded(!isInteractiveExpanded)}
-          className="w-full flex items-center justify-between px-6 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+          onClick={() => !isCollapsed && setIsInteractiveExpanded(!isInteractiveExpanded)}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'justify-between px-6'} py-3 text-sm font-medium text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors`}
+          title={isCollapsed ? 'Interactive Platform' : undefined}
         >
-          <div className="flex items-center gap-2">
-            <ChatIcon className="w-[18px] h-[18px]" />
-            <span>Interactive Platform</span>
+          <div className={`flex items-center ${isCollapsed ? '' : 'gap-2'}`}>
+            <ChatIcon className="w-[18px] h-[18px] flex-shrink-0" />
+            {!isCollapsed && <span className="whitespace-nowrap">Interactive Platform</span>}
           </div>
-          <ChevronIcon
-            className={`w-4 h-4 transition-transform duration-200 ${isInteractiveExpanded ? 'rotate-180' : ''}`}
-          />
+          {!isCollapsed && (
+            <ChevronIcon
+              className={`w-4 h-4 transition-transform duration-200 ${isInteractiveExpanded ? 'rotate-180' : ''}`}
+            />
+          )}
         </button>
 
-        {/* Collapsible Content */}
+        {/* Expanded content */}
         <div
           className={`overflow-hidden transition-all duration-300 ease-in-out ${
-            isInteractiveExpanded ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+            isInteractiveExpanded && !isCollapsed ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
           }`}
         >
           <nav className="mt-1">
             <NavLink
               to="/chat"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
-                  isActive ? 'bg-blue-600 text-white' : ''
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
                 }`
               }
             >
               <ChatBubbleIcon className="w-[16px] h-[16px]" />
               Q&A
             </NavLink>
+            <NavLink
+              to="/catalog"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
+                }`
+              }
+            >
+              <CatalogIcon className="w-[16px] h-[16px]" />
+              Catalog
+            </NavLink>
+            <NavLink
+              to="/learn"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
+                }`
+              }
+            >
+              <LearnIcon className="w-[16px] h-[16px]" />
+              Learn
+            </NavLink>
           </nav>
         </div>
+
+        {/* Collapsed icons for Interactive section */}
+        {isCollapsed && (
+          <nav className="flex flex-col items-center">
+            <NavLink
+              to="/chat"
+              title="Q&A"
+              className={({ isActive }) =>
+                `flex items-center justify-center w-full py-2.5 text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
+                }`
+              }
+            >
+              <ChatBubbleIcon className="w-[16px] h-[16px]" />
+            </NavLink>
+            <NavLink
+              to="/catalog"
+              title="Catalog"
+              className={({ isActive }) =>
+                `flex items-center justify-center w-full py-2.5 text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
+                }`
+              }
+            >
+              <CatalogIcon className="w-[16px] h-[16px]" />
+            </NavLink>
+            <NavLink
+              to="/learn"
+              title="Learn"
+              className={({ isActive }) =>
+                `flex items-center justify-center w-full py-2.5 text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
+                }`
+              }
+            >
+              <LearnIcon className="w-[16px] h-[16px]" />
+            </NavLink>
+          </nav>
+        )}
       </div>
 
       {/* Collapsible Lab Platform Section */}
       <div className="mt-2">
         <button
-          onClick={() => setIsLabExpanded(!isLabExpanded)}
-          className="w-full flex items-center justify-between px-6 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+          onClick={() => !isCollapsed && setIsLabExpanded(!isLabExpanded)}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'justify-between px-6'} py-3 text-sm font-medium text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors`}
+          title={isCollapsed ? 'Lab Platform' : undefined}
         >
-          <div className="flex items-center gap-2">
-            <LabIcon className="w-[18px] h-[18px]" />
-            <span>Lab Platform</span>
+          <div className={`flex items-center ${isCollapsed ? '' : 'gap-2'}`}>
+            <LabIcon className="w-[18px] h-[18px] flex-shrink-0" />
+            {!isCollapsed && <span className="whitespace-nowrap">Lab Platform</span>}
           </div>
-          <ChevronIcon
-            className={`w-4 h-4 transition-transform duration-200 ${isLabExpanded ? 'rotate-180' : ''}`}
-          />
+          {!isCollapsed && (
+            <ChevronIcon
+              className={`w-4 h-4 transition-transform duration-200 ${isLabExpanded ? 'rotate-180' : ''}`}
+            />
+          )}
         </button>
 
-        {/* Collapsible Content */}
+        {/* Expanded content */}
         <div
           className={`overflow-hidden transition-all duration-300 ease-in-out ${
-            isLabExpanded ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+            isLabExpanded && !isCollapsed ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
           }`}
         >
           <nav className="mt-1">
             <NavLink
               to="/experiments"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
-                  isActive ? 'bg-blue-600 text-white' : ''
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
                 }`
               }
             >
@@ -192,34 +311,55 @@ export default function Sidebar() {
             </NavLink>
           </nav>
         </div>
+
+        {/* Collapsed icons for Lab section */}
+        {isCollapsed && (
+          <nav className="flex flex-col items-center">
+            <NavLink
+              to="/experiments"
+              title="Experiment Tracker"
+              className={({ isActive }) =>
+                `flex items-center justify-center w-full py-2.5 text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
+                }`
+              }
+            >
+              <ExperimentIcon className="w-[16px] h-[16px]" />
+            </NavLink>
+          </nav>
+        )}
       </div>
 
       {/* Collapsible Connectors Section */}
       <div className="mt-2">
         <button
-          onClick={() => setIsConnectorsExpanded(!isConnectorsExpanded)}
-          className="w-full flex items-center justify-between px-6 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+          onClick={() => !isCollapsed && setIsConnectorsExpanded(!isConnectorsExpanded)}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'justify-between px-6'} py-3 text-sm font-medium text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors`}
+          title={isCollapsed ? 'Connectors' : undefined}
         >
-          <div className="flex items-center gap-2">
-            <ConnectorIcon className="w-[18px] h-[18px]" />
-            <span>Connectors</span>
+          <div className={`flex items-center ${isCollapsed ? '' : 'gap-2'}`}>
+            <ConnectorIcon className="w-[18px] h-[18px] flex-shrink-0" />
+            {!isCollapsed && <span className="whitespace-nowrap">Connectors</span>}
           </div>
-          <ChevronIcon
-            className={`w-4 h-4 transition-transform duration-200 ${isConnectorsExpanded ? 'rotate-180' : ''}`}
-          />
+          {!isCollapsed && (
+            <ChevronIcon
+              className={`w-4 h-4 transition-transform duration-200 ${isConnectorsExpanded ? 'rotate-180' : ''}`}
+            />
+          )}
         </button>
 
+        {/* Expanded content */}
         <div
           className={`overflow-hidden transition-all duration-300 ease-in-out ${
-            isConnectorsExpanded ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'
+            isConnectorsExpanded && !isCollapsed ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'
           }`}
         >
           <nav className="mt-1">
             <NavLink
               to="/swagger"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
-                  isActive ? 'bg-blue-600 text-white' : ''
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
                 }`
               }
             >
@@ -229,8 +369,8 @@ export default function Sidebar() {
             <NavLink
               to="/redoc"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
-                  isActive ? 'bg-blue-600 text-white' : ''
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
                 }`
               }
             >
@@ -240,8 +380,8 @@ export default function Sidebar() {
             <NavLink
               to="/openapi"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
-                  isActive ? 'bg-blue-600 text-white' : ''
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
                 }`
               }
             >
@@ -251,8 +391,8 @@ export default function Sidebar() {
             <NavLink
               to="/mcp"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
-                  isActive ? 'bg-blue-600 text-white' : ''
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
                 }`
               }
             >
@@ -261,12 +401,87 @@ export default function Sidebar() {
             </NavLink>
           </nav>
         </div>
+
+        {/* Collapsed icons for Connectors section */}
+        {isCollapsed && (
+          <nav className="flex flex-col items-center">
+            <NavLink
+              to="/swagger"
+              title="Swagger UI"
+              className={({ isActive }) =>
+                `flex items-center justify-center w-full py-2.5 text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
+                }`
+              }
+            >
+              <SwaggerIcon className="w-[16px] h-[16px]" />
+            </NavLink>
+            <NavLink
+              to="/redoc"
+              title="ReDoc"
+              className={({ isActive }) =>
+                `flex items-center justify-center w-full py-2.5 text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
+                }`
+              }
+            >
+              <DocIcon className="w-[16px] h-[16px]" />
+            </NavLink>
+            <NavLink
+              to="/openapi"
+              title="OpenAPI Spec"
+              className={({ isActive }) =>
+                `flex items-center justify-center w-full py-2.5 text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
+                }`
+              }
+            >
+              <ApiIcon className="w-[16px] h-[16px]" />
+            </NavLink>
+            <NavLink
+              to="/mcp"
+              title="MCP Inspector"
+              className={({ isActive }) =>
+                `flex items-center justify-center w-full py-2.5 text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors ${
+                  isActive ? 'bg-[#0A3161] text-white' : ''
+                }`
+              }
+            >
+              <McpIcon className="w-[16px] h-[16px]" />
+            </NavLink>
+          </nav>
+        )}
       </div>
 
-      <div className="mt-auto p-6 border-t border-slate-800">
-        <p className="text-slate-500 text-xs">Pipeline Version 0.1.0</p>
+      <div className={`mt-auto p-4 border-t border-[#142038] ${isCollapsed ? 'text-center' : ''}`}>
+        {!isCollapsed && <p className="text-slate-500 text-xs">Pipeline Version 0.1.0</p>}
+        {isCollapsed && <p className="text-slate-500 text-[10px]">v0.1</p>}
       </div>
     </aside>
+  );
+}
+
+// USAFacts logo — wavy lines forming US map silhouette
+function UsaFactsLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 32 32" fill="none">
+      <path d="M4 8 C8 6, 12 7, 16 8 C20 9, 24 7, 28 8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M3 13 C7 11, 11 13, 16 13 C21 13, 25 11, 29 13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M5 18 C9 16, 13 18, 17 18 C21 18, 25 16, 28 18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M6 23 C10 21, 14 23, 18 23 C22 23, 25 21, 27 23" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Catalog icon (search/magnifying glass over document)
+function CatalogIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <line x1="8" y1="8" x2="14" y2="8" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
   );
 }
 
@@ -300,6 +515,16 @@ function ChatBubbleIcon({ className }: { className?: string }) {
   );
 }
 
+
+// Learn icon (open book)
+function LearnIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </svg>
+  );
+}
 
 // Architecture icon (flow/diagram)
 function ArchitectureIcon({ className }: { className?: string }) {
@@ -426,7 +651,7 @@ function QuickStat({ label, value, color, trend }: QuickStatProps) {
         {value}
         {trend !== undefined && Math.abs(trend) >= 0.1 && (
           <span className={`ml-1 text-xs ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {trend > 0 ? '↑' : '↓'} {trend > 0 ? '+' : ''}{trend.toFixed(1)}
+            {trend > 0 ? '\u2191' : '\u2193'} {trend > 0 ? '+' : ''}{trend.toFixed(1)}
           </span>
         )}
       </span>

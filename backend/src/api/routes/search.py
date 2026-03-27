@@ -12,7 +12,7 @@ from typing import Any
 import anthropic
 import httpx
 from dotenv import load_dotenv
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from src.api.deps import DBSession, Storage
@@ -1626,6 +1626,146 @@ def search_query(request: QueryRequest, storage: Storage, db: DBSession) -> Sear
         metrics=answer_metrics,
         trace=trace,
     )
+
+
+@router.post(
+    "/catalog",
+    summary="Catalog Search — find documents without generating answers",
+    response_description="Ranked document results from local store and optionally web sources",
+)
+def catalog_search(
+    request: QueryRequest,
+    storage: Storage,
+    db: DBSession,
+    limit: int = Query(10, ge=5, le=20),
+) -> dict[str, Any]:
+    """Search across local documents, .gov websites, and USAFacts.org.
+
+    Returns ranked results with metadata and snippets — no LLM answer generation.
+    Faster than the Q&A endpoint since it skips Claude synthesis.
+
+    Sources are labeled as 'local' (Weaviate/Neo4j), 'gov' (.gov web), or 'usafacts' (USAFacts.org web).
+    """
+    t0 = time.perf_counter()
+
+    # Lightweight decomposition (extract keywords without Claude)
+    decomposition = decompose_query_fallback(request.query)
+
+    # Determine mode
+    mode_map = {
+        "weaviate_only": "v", "weaviate_graph": "vg",
+        "v": "v", "vg": "vg", "vw": "vw", "vgw": "vgw",
+    }
+    effective_mode = mode_map.get(request.mode or "", "vg" if os.getenv("GRAPH_ENABLED", "").lower() in ("true", "1") else "v")
+    use_graph = effective_mode in ("vg", "vgw")
+    use_web = effective_mode in ("vw", "vgw")
+
+    results: list[dict[str, Any]] = []
+
+    # --- Local search (Weaviate) ---
+    try:
+        from src.services import weaviate_client
+
+        graph_expansion = _expand_query_with_graph(decomposition) if use_graph else {"expanded_keywords": [], "suggested_doc_ids": []}
+
+        query_parts = [decomposition.original_query] + decomposition.keywords + graph_expansion.get("expanded_keywords", [])
+        query_text = " ".join(query_parts)
+        query_vector = get_embedding(decomposition.original_query)
+        query_vector_list = query_vector.tolist() if query_vector is not None else None
+
+        chunk_results = weaviate_client.hybrid_search(
+            query_text=query_text,
+            query_vector=query_vector_list,
+            limit=limit,
+            alpha=0.5,
+            collection_name=weaviate_client.GOV_CHUNK_COLLECTION,
+        )
+
+        # Deduplicate by doc_id
+        seen: dict[str, dict] = {}
+        for r in chunk_results:
+            doc_id = r.get("doc_id", "")
+            score = r.get("_score", 0)
+            if doc_id not in seen or score > seen[doc_id].get("_score", 0):
+                seen[doc_id] = r
+
+        for doc_id, r in seen.items():
+            text = r.get("text", r.get("summary", ""))
+            asset_name = r.get("asset", "")
+            agency_name = r.get("agency", "")
+
+            # Look up the original source URL from the enriched doc in MinIO
+            source_url = None
+            landing_path = None
+            try:
+                prefix = f"enrichment-zone/{agency_name}/{asset_name}/"
+                objs = list(storage.client.list_objects(storage.bucket, prefix=prefix, recursive=True))
+                json_objs = [o for o in objs if o.object_name.endswith(".json") and not o.object_name.endswith("_metadata.json")]
+                if json_objs:
+                    json_objs.sort(key=lambda o: o.last_modified, reverse=True)
+                    data = storage.get_object(json_objs[0].object_name)
+                    enriched = json.loads(data.decode("utf-8"))
+                    source_url = enriched.get("source", {}).get("originalUrl", "")
+                    landing_path = enriched.get("source", {}).get("storageUrl", "")
+            except Exception:
+                pass
+
+            results.append({
+                "source": "local",
+                "title": r.get("title", "") or asset_name or doc_id,
+                "agency": agency_name,
+                "asset": asset_name,
+                "doc_id": doc_id,
+                "snippet": text[:500] + ("..." if len(text) > 500 else ""),
+                "section": r.get("section_id") or r.get("level", ""),
+                "page_number": r.get("page_number"),
+                "relevance_score": round(r.get("_score", 0), 3),
+                "url": source_url or None,
+                "download_path": landing_path or None,
+            })
+    except Exception as e:
+        logger.warning(f"[catalog] Weaviate search failed: {e}")
+
+    # --- Web search (.gov + USAFacts) ---
+    if use_web:
+        try:
+            from src.services.web_search import search_gov_sources
+            web_results = search_gov_sources(decomposition.original_query, limit=limit)
+            for i, wr in enumerate(web_results):
+                url = wr.get("url", "")
+                source = "usafacts" if "usafacts" in url else "gov"
+                results.append({
+                    "source": source,
+                    "title": wr.get("title", ""),
+                    "agency": source,
+                    "asset": None,
+                    "doc_id": None,
+                    "snippet": wr.get("content", "")[:500],
+                    "section": None,
+                    "page_number": None,
+                    "relevance_score": round(0.7 - (i * 0.03), 3),
+                    "url": url,
+                })
+        except Exception as e:
+            logger.warning(f"[catalog] Web search failed: {e}")
+
+    # Apply trust weights and sort
+    for r in results:
+        trust = {"local": 1.0, "usafacts": 0.85, "gov": 0.70}.get(r["source"], 0.6)
+        r["relevance_score"] = round(r["relevance_score"] * trust, 3)
+
+    results.sort(key=lambda x: x["relevance_score"], reverse=True)
+    results = results[:limit]
+
+    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+
+    return {
+        "query": request.query,
+        "mode": effective_mode,
+        "total_results": len(results),
+        "elapsed_ms": elapsed_ms,
+        "results": results,
+    }
 
 
 @router.get(
