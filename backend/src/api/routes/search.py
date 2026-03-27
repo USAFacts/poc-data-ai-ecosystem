@@ -585,6 +585,7 @@ def _search_with_weaviate(
 # adjust ranking, they don't exclude sources.
 
 _SOURCE_TRUST = {
+    "census":   1.00,   # U.S. Census Bureau Data API — official primary data
     "local":    1.00,   # Ingested + enriched (Weaviate + Neo4j)
     "usafacts": 0.85,   # USAFacts.org — curated, high quality
     "gov":      0.70,   # .gov web search — authoritative but broad
@@ -602,6 +603,8 @@ _RECENCY_KEYWORDS = [
 
 def _classify_source(doc_ref: "DocumentReference") -> str:
     """Classify a DocumentReference into a trust tier."""
+    if doc_ref.document_id.startswith("census/"):
+        return "census"
     if doc_ref.document_id.startswith("web/"):
         url = (doc_ref.source_url or "").lower()
         if "usafacts.org" in url:
@@ -712,6 +715,211 @@ def _search_web(query: str, decomposition: "QueryDecomposition") -> list[Documen
             file_format=file_format,
         )
         refs.append(ref)
+
+    return refs
+
+
+# ---------------------------------------------------------------------------
+# Census Bureau data retrieval
+# ---------------------------------------------------------------------------
+
+# Keywords that suggest the query needs Census statistical data
+_CENSUS_KEYWORDS = [
+    "population", "census", "demographic", "demographics",
+    "median income", "household income", "poverty", "poverty rate",
+    "housing", "homeownership", "rent", "vacancy",
+    "employment", "unemployment", "labor force",
+    "education", "bachelor", "high school",
+    "age distribution", "median age",
+    "foreign born", "immigrant", "immigration",
+    "citizenship", "naturalized",
+    "how many people", "how many residents",
+    "percent of", "percentage",
+    "state population", "county population",
+]
+
+# Common ACS variables for immigration/demographic queries
+_CENSUS_QUERY_MAP: list[dict[str, Any]] = [
+    {
+        "keywords": ["population", "how many people", "residents", "demographic"],
+        "variables": ["B01001_001E", "NAME"],
+        "label": "Total Population",
+        "dataset": "acs/acs5",
+    },
+    {
+        "keywords": ["foreign born", "immigrant", "immigration", "born outside"],
+        "variables": ["B05002_001E", "B05002_013E", "NAME"],
+        "label": "Foreign-Born Population",
+        "dataset": "acs/acs5",
+    },
+    {
+        "keywords": ["citizenship", "naturalized", "citizen"],
+        "variables": ["B05001_001E", "B05001_002E", "B05001_005E", "B05001_006E", "NAME"],
+        "label": "Citizenship Status",
+        "dataset": "acs/acs5",
+    },
+    {
+        "keywords": ["median income", "household income", "income"],
+        "variables": ["B19013_001E", "NAME"],
+        "label": "Median Household Income",
+        "dataset": "acs/acs5",
+    },
+    {
+        "keywords": ["poverty", "poverty rate", "below poverty"],
+        "variables": ["B17001_001E", "B17001_002E", "NAME"],
+        "label": "Poverty Status",
+        "dataset": "acs/acs5",
+    },
+    {
+        "keywords": ["employment", "unemployment", "labor force", "unemployed"],
+        "variables": ["B23025_001E", "B23025_005E", "NAME"],
+        "label": "Employment Status",
+        "dataset": "acs/acs5",
+    },
+    {
+        "keywords": ["education", "bachelor", "high school", "degree"],
+        "variables": ["B15003_001E", "B15003_022E", "B15003_023E", "NAME"],
+        "label": "Educational Attainment",
+        "dataset": "acs/acs5",
+    },
+]
+
+
+def _search_census(query: str, decomposition: "QueryDecomposition", db: Any) -> list[DocumentReference]:
+    """Fetch Census Bureau data when the query involves statistics or demographics.
+
+    Returns DocumentReferences with Census data as snippets. Only triggers
+    when the query matches Census-relevant keywords. Trust weighting is
+    applied later by _apply_trust_weights() (census tier = 1.0).
+    """
+    query_lower = query.lower()
+
+    # Check if query is Census-relevant
+    if not any(kw in query_lower for kw in _CENSUS_KEYWORDS):
+        return []
+
+    try:
+        from src.services.census import resolve_geography_fips, fetch_aggregate_data
+    except ImportError:
+        logger.warning("[search] Census service not available")
+        return []
+
+    refs: list[DocumentReference] = []
+
+    # Detect geography from entities or query text
+    geo_for = "state:*"
+    geo_in = None
+    geo_label = "all states"
+
+    # Check if a specific state is mentioned
+    state_entities = [e for e in decomposition.entities if e.type in ("location", "state")]
+    if state_entities:
+        geo_name = state_entities[0].text
+    else:
+        # Fallback: try to find a state name in the query
+        import re as _re
+        state_names = [
+            "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+            "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho",
+            "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana",
+            "maine", "maryland", "massachusetts", "michigan", "minnesota",
+            "mississippi", "missouri", "montana", "nebraska", "nevada",
+            "new hampshire", "new jersey", "new mexico", "new york",
+            "north carolina", "north dakota", "ohio", "oklahoma", "oregon",
+            "pennsylvania", "rhode island", "south carolina", "south dakota",
+            "tennessee", "texas", "utah", "vermont", "virginia", "washington",
+            "west virginia", "wisconsin", "wyoming", "district of columbia",
+            "puerto rico",
+        ]
+        geo_name = None
+        for sn in state_names:
+            if sn in query_lower:
+                geo_name = sn.title()
+                break
+
+    if geo_name:
+        try:
+            matches = resolve_geography_fips(db, geo_name, "State")
+            if matches:
+                geo_for = matches[0]["for_param"]
+                geo_label = matches[0]["name"]
+                geo_in = matches[0].get("in_param")
+        except Exception as e:
+            logger.debug(f"[census] Geography resolution failed for '{geo_name}': {e}")
+
+    # Find matching Census variable sets
+    matched_queries = []
+    for qmap in _CENSUS_QUERY_MAP:
+        if any(kw in query_lower for kw in qmap["keywords"]):
+            matched_queries.append(qmap)
+    if not matched_queries:
+        # Default to population + foreign-born for immigration queries
+        matched_queries = [_CENSUS_QUERY_MAP[0], _CENSUS_QUERY_MAP[1]]
+
+    # Limit to 2 Census fetches to keep response time reasonable
+    for i, qmap in enumerate(matched_queries[:2]):
+        try:
+            result = fetch_aggregate_data(
+                dataset=qmap["dataset"],
+                year=2022,
+                variables=qmap["variables"],
+                for_clause=geo_for,
+                in_clause=geo_in,
+                db=db,
+            )
+
+            if not result or not result.get("data"):
+                continue
+
+            # Format data into a readable snippet
+            data_rows = result["data"]
+            # For all-states, show top 10 by the first numeric variable
+            if geo_for == "state:*" and len(data_rows) > 10:
+                num_var = [v for v in qmap["variables"] if v != "NAME"][0]
+                data_rows = sorted(
+                    data_rows,
+                    key=lambda r: int(r.get(num_var, 0) or 0),
+                    reverse=True,
+                )[:10]
+
+            lines = [f"**{qmap['label']}** ({geo_label}, 2022 ACS 5-Year Estimates)"]
+            lines.append("")
+            for row in data_rows:
+                name = row.get("NAME", "")
+                values = []
+                for var in qmap["variables"]:
+                    if var == "NAME":
+                        continue
+                    val = row.get(var, "N/A")
+                    try:
+                        values.append(f"{int(val):,}")
+                    except (ValueError, TypeError):
+                        values.append(str(val))
+                lines.append(f"- {name}: {', '.join(values)}")
+
+            lines.append("")
+            lines.append(result.get("citation", ""))
+
+            snippet = "\n".join(lines)
+
+            ref = DocumentReference(
+                document_id=f"census/{qmap['dataset']}/{qmap['label'].lower().replace(' ', '-')}/{i}",
+                document_title=f"{qmap['label']} - U.S. Census Bureau",
+                asset_name="census-api",
+                agency_name="U.S. Census Bureau",
+                agency_id="census",
+                section=qmap["label"],
+                relevance_score=0.90,
+                snippet=snippet,
+                original_url=None,
+                source_url="https://data.census.gov",
+                file_format="API",
+            )
+            refs.append(ref)
+
+        except Exception as e:
+            logger.warning(f"[census] Failed to fetch {qmap['label']}: {e}")
+            continue
 
     return refs
 
@@ -834,7 +1042,16 @@ def search_documents(
                 results.extend(web_results)
                 data_metrics["web_results_added"] = len(web_results)
 
-        # Apply trust-based weighting across ALL sources (local + web)
+        # Census Bureau data — always attempted when query is relevant
+        try:
+            census_results = _search_census(decomposition.original_query, decomposition, db)
+            if census_results:
+                results.extend(census_results)
+                data_metrics["census_results_added"] = len(census_results)
+        except Exception as e:
+            logger.warning(f"[search] Census search failed: {e}")
+
+        # Apply trust-based weighting across ALL sources (local + web + census)
         query_lower = decomposition.original_query.lower()
         is_recency_sensitive = any(kw in query_lower for kw in _RECENCY_KEYWORDS)
         _apply_trust_weights(results, is_recency_sensitive)
@@ -1751,7 +1968,7 @@ def catalog_search(
 
     # Apply trust weights and sort
     for r in results:
-        trust = {"local": 1.0, "usafacts": 0.85, "gov": 0.70}.get(r["source"], 0.6)
+        trust = {"census": 1.0, "local": 1.0, "usafacts": 0.85, "gov": 0.70}.get(r["source"], 0.6)
         r["relevance_score"] = round(r["relevance_score"] * trust, 3)
 
     results.sort(key=lambda x: x["relevance_score"], reverse=True)

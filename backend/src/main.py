@@ -21,8 +21,9 @@ print(f"[DEBUG] ANTHROPIC_API_KEY loaded: {bool(api_key)}")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import agencies, asset_reports, assets, data, experiments, graph, metrics, neo4j_status, search, stats, weaviate_status, workflows
+from src.api.routes import agencies, asset_reports, assets, census, data, experiments, graph, metrics, neo4j_status, search, stats, weaviate_status, workflows
 from src.models.domain import Base
+import src.models.census  # noqa: F401 — register Census tables with SQLAlchemy metadata
 from src.services.database import engine
 from src.services.storage import get_storage_service
 
@@ -133,6 +134,10 @@ tags_metadata = [
         "name": "experiments",
         "description": "RAG evaluation experiment tracker. Run ablation tests comparing retrieval modes (V, VG, VW, VGW) across 350 stratified questions with quality metrics (STS, NVS, HDS, CSCS).",
     },
+    {
+        "name": "census",
+        "description": "U.S. Census Bureau Data API. Search geographies, data tables, datasets, and fetch aggregate statistics. Includes a Claude-powered natural language query endpoint.",
+    },
 ]
 
 # Create FastAPI application
@@ -217,6 +222,7 @@ app.include_router(weaviate_status.router, prefix="/api/weaviate", tags=["weavia
 app.include_router(neo4j_status.router, prefix="/api/neo4j", tags=["neo4j"])
 app.include_router(data.router, prefix="/api/data", tags=["data"])
 app.include_router(experiments.router, prefix="/api/experiments", tags=["experiments"])
+app.include_router(census.router, prefix="/api/census", tags=["census"])
 
 
 @app.get("/", tags=["root"], summary="API Information")
