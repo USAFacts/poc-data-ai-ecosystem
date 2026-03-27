@@ -1,0 +1,22 @@
+[project]
+name = "mcp-data-server"
+version = "0.1.0"
+description = "MCP server for Gov Data AI Ecosystem - direct access to Weaviate, Neo4j, MinIO, and PostgreSQL"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.0",
+    "weaviate-client>=4.9",
+    "neo4j>=5.0",
+    "minio>=7.2",
+    "psycopg2-binary>=2.9",
+    "sqlalchemy>=2.0",
+    "python-dotenv>=1.0",
+    "firecrawl-py>=1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+mcp-data-server = "mcp_data_server.server:main"

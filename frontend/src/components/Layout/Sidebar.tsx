@@ -17,6 +17,7 @@ export default function Sidebar() {
   const [isIntelligenceExpanded, setIsIntelligenceExpanded] = useState(true);
   const [isInteractiveExpanded, setIsInteractiveExpanded] = useState(false);
   const [isLabExpanded, setIsLabExpanded] = useState(false);
+  const [isConnectorsExpanded, setIsConnectorsExpanded] = useState(false);
 
   const { data: stats } = useQuery({
     queryKey: ['dashboardStats'],
@@ -193,6 +194,75 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* Collapsible Connectors Section */}
+      <div className="mt-2">
+        <button
+          onClick={() => setIsConnectorsExpanded(!isConnectorsExpanded)}
+          className="w-full flex items-center justify-between px-6 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <ConnectorIcon className="w-[18px] h-[18px]" />
+            <span>Connectors</span>
+          </div>
+          <ChevronIcon
+            className={`w-4 h-4 transition-transform duration-200 ${isConnectorsExpanded ? 'rotate-180' : ''}`}
+          />
+        </button>
+
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-in-out ${
+            isConnectorsExpanded ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <nav className="mt-1">
+            <NavLink
+              to="/swagger"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
+                  isActive ? 'bg-blue-600 text-white' : ''
+                }`
+              }
+            >
+              <SwaggerIcon className="w-[16px] h-[16px]" />
+              Swagger UI
+            </NavLink>
+            <NavLink
+              to="/redoc"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
+                  isActive ? 'bg-blue-600 text-white' : ''
+                }`
+              }
+            >
+              <DocIcon className="w-[16px] h-[16px]" />
+              ReDoc
+            </NavLink>
+            <NavLink
+              to="/openapi"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
+                  isActive ? 'bg-blue-600 text-white' : ''
+                }`
+              }
+            >
+              <ApiIcon className="w-[16px] h-[16px]" />
+              OpenAPI Spec
+            </NavLink>
+            <NavLink
+              to="/mcp"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-6 pl-10 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${
+                  isActive ? 'bg-blue-600 text-white' : ''
+                }`
+              }
+            >
+              <McpIcon className="w-[16px] h-[16px]" />
+              MCP Inspector
+            </NavLink>
+          </nav>
+        </div>
+      </div>
+
       <div className="mt-auto p-6 border-t border-slate-800">
         <p className="text-slate-500 text-xs">Pipeline Version 0.1.0</p>
       </div>
@@ -288,6 +358,55 @@ function ExperimentIcon({ className }: { className?: string }) {
       <path d="M14.5 2v6.5a2 2 0 0 0 .5 1.3l4.5 5.6a2 2 0 0 1-1.6 3.1H6.1a2 2 0 0 1-1.6-3.1l4.5-5.6a2 2 0 0 0 .5-1.3V2" />
       <path d="M8.5 2h7" />
       <path d="M7 16.5h10" />
+    </svg>
+  );
+}
+
+// Connector icon (plug)
+function ConnectorIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2v6" /><path d="M6 2v6" /><path d="M18 2v6" />
+      <path d="M6 8h12a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z" />
+      <path d="M12 14v8" />
+    </svg>
+  );
+}
+
+function SwaggerIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" />
+      <circle cx="19" cy="18" r="2" />
+    </svg>
+  );
+}
+
+function DocIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+    </svg>
+  );
+}
+
+function ApiIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+      <line x1="14" y1="4" x2="10" y2="20" />
+    </svg>
+  );
+}
+
+function McpIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+      <line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+      <path d="M7 9l3 3-3 3" /><line x1="13" y1="15" x2="17" y2="15" />
     </svg>
   );
 }

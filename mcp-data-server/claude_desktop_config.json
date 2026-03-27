@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "gov-data": {
+      "command": "uv",
+      "args": ["--directory", "/Users/ricardom/Documents/usafacts-org-repo/poc-data-ai-ecosystem/mcp-data-server", "run", "mcp-data-server"],
+      "env": {
+        "WEAVIATE_HOST": "localhost",
+        "WEAVIATE_PORT": "8085",
+        "WEAVIATE_GRPC_PORT": "50051",
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USER": "neo4j",
+        "NEO4J_PASSWORD": "pipeline123",
+        "MINIO_ENDPOINT": "localhost:9000",
+        "MINIO_ACCESS_KEY": "minioadmin",
+        "MINIO_SECRET_KEY": "minioadmin",
+        "MINIO_BUCKET": "gov-data-lake",
+        "MINIO_SECURE": "false",
+        "DATABASE_URL": "postgresql://pipeline:pipeline@localhost:5432/pipeline"
+      }
+    }
+  }
+}

@@ -8,6 +8,10 @@ import WeaviatePage from './pages/WeaviatePage';
 import Neo4jPage from './pages/Neo4jPage';
 import ExperimentTrackerPage from './pages/ExperimentTrackerPage';
 import ArchitecturePage from './pages/ArchitecturePage';
+import McpInspectorPage from './pages/McpInspectorPage';
+import SwaggerPage from './pages/SwaggerPage';
+import RedocPage from './pages/RedocPage';
+import OpenApiPage from './pages/OpenApiPage';
 
 function App() {
   return (
@@ -21,6 +25,10 @@ function App() {
         <Route path="/neo4j" element={<Neo4jPage />} />
         <Route path="/experiments" element={<ExperimentTrackerPage />} />
         <Route path="/architecture" element={<ArchitecturePage />} />
+        <Route path="/swagger" element={<SwaggerPage />} />
+        <Route path="/redoc" element={<RedocPage />} />
+        <Route path="/openapi" element={<OpenApiPage />} />
+        <Route path="/mcp" element={<McpInspectorPage />} />
       </Routes>
     </Layout>
   );
