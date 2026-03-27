@@ -117,161 +117,199 @@ export default function ChatbotPage() {
   const displayPrograms = apiProgramsFiltered.length > 0 ? apiProgramsFiltered : defaultPrograms;
   const displayAgencies = defaultAgencies; // Always show agencies
 
-  return (
-    <div className="h-[calc(100vh-2rem)] flex flex-col">
-      <div className="mb-4">
-        <h1 className="text-2xl font-semibold text-slate-900">Q&A</h1>
-        <p className="text-sm text-slate-500">Ask questions about government data with full source attribution</p>
-      </div>
+  const hasMessages = messages.length > 1 || messages[0]?.searchResult;
+  const showWelcome = !hasMessages && !isLoading;
 
-      <div className="flex-1 flex gap-6 min-h-0">
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {messages.map((message) => (
-              <div key={message.id}>
-                <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                      message.role === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-800'
-                    }`}
+  return (
+    <div className="h-[calc(100vh-64px)] flex flex-col overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-6 py-8">
+
+          {/* Welcome state — USAFacts style */}
+          {showWelcome && (
+            <div className="flex flex-col items-center pt-8">
+              <h1 className="text-4xl font-bold text-[#4A7C59] mb-1">Hello</h1>
+              <h2 className="text-3xl font-semibold text-slate-800 mb-8">What's your question?</h2>
+
+              {/* Search bar — pill style */}
+              <form onSubmit={handleSubmit} className="w-full max-w-xl mb-4">
+                <div className="flex items-center bg-white rounded-full border border-slate-200 shadow-sm px-5 py-3 focus-within:ring-2 focus-within:ring-[#4A7C59]/30 focus-within:border-[#4A7C59]/50 transition-all">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Ask about government data, forms, or programs..."
+                    className="flex-1 text-sm text-slate-800 placeholder-slate-400 bg-transparent outline-none"
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || isLoading}
+                    className="w-8 h-8 rounded-full bg-[#4A7C59] text-white flex items-center justify-center hover:bg-[#3D6B4A] disabled:opacity-30 transition-colors flex-shrink-0 ml-2"
                   >
-                    <div className="text-sm leading-relaxed">
-                      <MarkdownContent content={message.content} isUser={message.role === 'user'} />
-                    </div>
-                    <p className={`text-[10px] mt-2 ${
-                      message.role === 'user' ? 'text-blue-200' : 'text-slate-400'
-                    }`}>
-                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                    <SendIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+
+              {/* Retrieval mode selector */}
+              <div className="flex items-center gap-2 mb-10">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Retrieval</span>
+                {[
+                  { id: 'v', short: 'V', label: 'Weaviate' },
+                  { id: 'vg', short: 'V+G', label: 'Weaviate + Graph' },
+                  { id: 'vgw', short: 'V+G+W', label: 'All Sources' },
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => setSelectedMode(mode.id)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                      selectedMode === mode.id
+                        ? 'bg-[#0A3161] text-white'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                    title={mode.label}
+                  >
+                    {mode.short}
+                  </button>
+                ))}
+              </div>
+
+              {/* Suggestion cards — 2x2 grid */}
+              <div className="grid grid-cols-2 gap-4 w-full max-w-xl mb-8">
+                {suggestedQuestions.map((question, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setInput(question); }}
+                    className="text-left p-4 rounded-2xl bg-[#F0F5F1] border border-[#E0E8E2] hover:bg-[#E5EDE7] hover:border-[#C8D5CB] transition-all group"
+                  >
+                    <p className="text-sm font-medium text-slate-800">{question}</p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Topic pills */}
+              <div className="w-full max-w-xl space-y-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-2">Browse by topic</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {displayAgencies.map((a, i) => (
+                      <button key={`a-${i}`} onClick={() => handleSuggestionClick(`What data do we have from ${a}?`)} className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs hover:bg-amber-100 border border-amber-200 transition-colors">{a}</button>
+                    ))}
+                    {displayForms.slice(0, 6).map((f, i) => (
+                      <button key={`f-${i}`} onClick={() => handleSuggestionClick(`What is ${f}?`)} className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs hover:bg-blue-100 border border-blue-200 transition-colors">{f}</button>
+                    ))}
+                    {displayPrograms.slice(0, 6).map((p, i) => (
+                      <button key={`p-${i}`} onClick={() => handleSuggestionClick(`Tell me about ${p}`)} className="px-2.5 py-1 bg-green-50 text-green-700 rounded-full text-xs hover:bg-green-100 border border-green-200 transition-colors">{p}</button>
+                    ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
 
-                {/* Completed reasoning trace */}
-                {message.searchResult?.trace && message.searchResult.trace.length > 0 && (
-                  <CompletedTrace steps={message.searchResult.trace} />
-                )}
-
-                {/* Chart visualizations */}
-                {message.searchResult?.charts && message.searchResult.charts.length > 0 && (
-                  <div className="mt-4">
-                    <ChartRenderer charts={message.searchResult.charts} />
+          {/* Conversation — card-based, not bubbles */}
+          {!showWelcome && (
+            <div className="space-y-6">
+              {messages.filter(m => m.role === 'assistant' && m.searchResult).map((message) => (
+                <div key={message.id}>
+                  {/* User query as a clean header */}
+                  <div className="mb-4">
+                    <p className="text-lg font-semibold text-slate-800">
+                      {messages.find(m => m.role === 'user' && parseInt(m.id) < parseInt(message.id))?.content || 'Your question'}
+                    </p>
                   </div>
-                )}
 
-                {/* Answer Quality Metrics */}
-                {message.searchResult?.metrics && (
-                  <div className="ml-4">
-                    <MetricsPanel metrics={message.searchResult.metrics} />
+                  {/* Reasoning trace */}
+                  {message.searchResult?.trace && message.searchResult.trace.length > 0 && (
+                    <CompletedTrace steps={message.searchResult.trace} />
+                  )}
+
+                  {/* Answer card */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
+                    <div className="text-sm leading-relaxed">
+                      <MarkdownContent content={message.content} isUser={false} />
+                    </div>
                   </div>
-                )}
 
-                {/* Query Decomposition and Usage Metrics (for assistant messages) */}
-                {message.searchResult && (
-                  <div className="mt-2 ml-4">
-                    <div className="flex flex-wrap gap-2 items-center">
+                  {/* Charts */}
+                  {message.searchResult?.charts && message.searchResult.charts.length > 0 && (
+                    <div className="mb-4">
+                      <ChartRenderer charts={message.searchResult.charts} />
+                    </div>
+                  )}
+
+                  {/* Metrics + entities row */}
+                  <div className="flex flex-wrap items-center gap-2 mb-4">
+                    {message.searchResult?.metrics && (
+                      <MetricsPanel metrics={message.searchResult.metrics} />
+                    )}
+                  </div>
+
+                  {message.searchResult && (
+                    <div className="flex flex-wrap gap-2 items-center mb-4">
                       {message.searchResult.query_decomposition.entities.map((entity, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs"
-                        >
-                          <EntityTypeIcon type={entity.type} />
-                          {entity.text}
+                        <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs border border-purple-200">
+                          <EntityTypeIcon type={entity.type} />{entity.text}
                         </span>
                       ))}
-                      {message.searchResult.query_decomposition.entities.length > 0 && (
-                        <span className="inline-flex items-center px-2 py-1 bg-slate-100 text-slate-600 rounded-full text-xs">
-                          Intent: {message.searchResult.query_decomposition.intent}
+                      {message.searchResult.usage && (
+                        <span className="text-[10px] text-slate-400 ml-auto">
+                          {message.searchResult.usage.total_tokens.toLocaleString()} tokens · {message.searchResult.usage.documents_returned} docs
                         </span>
                       )}
                     </div>
-                    {/* Usage Metrics */}
-                    {message.searchResult.usage && (
-                      <div className="flex flex-wrap gap-3 mt-2 text-[10px] text-slate-500">
-                        {message.searchResult.claude_used ? (
-                          <span className="inline-flex items-center gap-1 text-green-600">
-                            <ClaudeIcon className="w-3 h-3" />
-                            Claude AI
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-orange-600">
-                            <WarningIcon className="w-3 h-3" />
-                            Fallback mode (API key not configured)
-                          </span>
-                        )}
-                        <span className="inline-flex items-center gap-1">
-                          <TokenIcon className="w-3 h-3" />
-                          {message.searchResult.usage.total_tokens.toLocaleString()} tokens
-                          {message.searchResult.claude_used && (
-                            <span className="text-slate-400">
-                              ({message.searchResult.usage.context_window_used_percent}% context)
-                            </span>
-                          )}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <DataIcon className="w-3 h-3" />
-                          {message.searchResult.usage.data_volume_display} processed
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <SearchIcon className="w-3 h-3" />
-                          {message.searchResult.usage.documents_returned}/{message.searchResult.usage.documents_searched} docs
-                        </span>
+                  )}
+
+                  {/* Sources */}
+                  {message.searchResult && message.searchResult.documents.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1">
+                        <SourceIcon className="w-3 h-3" />
+                        Sources ({message.searchResult.documents.length})
+                      </p>
+                      <div className="space-y-2">
+                        {message.searchResult.documents.map((doc, i) => (
+                          <CollapsibleSourceCard key={i} doc={doc} />
+                        ))}
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Collapsible Source Documents */}
-                {message.searchResult && message.searchResult.documents.length > 0 && (
-                  <div className="mt-3 ml-4">
-                    <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1">
-                      <SourceIcon className="w-3 h-3" />
-                      Sources ({message.searchResult.documents.length} documents)
-                    </p>
-                    <div className="space-y-2">
-                      {message.searchResult.documents.map((doc, i) => (
-                        <CollapsibleSourceCard key={i} doc={doc} />
-                      ))}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Collapsible Raw Response */}
-                {message.searchResult && (
-                  <CollapsibleRawResponse searchResult={message.searchResult} />
-                )}
-              </div>
-            ))}
+                  {message.searchResult && (
+                    <CollapsibleRawResponse searchResult={message.searchResult} />
+                  )}
+                </div>
+              ))}
 
-            {isLoading && (
-              <LiveTrace currentStep={liveTraceStep} mode={selectedMode} />
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+              {isLoading && (
+                <LiveTrace currentStep={liveTraceStep} mode={selectedMode} />
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+      </div>
 
-          {/* Input Area */}
-          <div className="border-t border-slate-200 p-4">
+      {/* Sticky bottom input — only when conversation is active */}
+      {!showWelcome && (
+        <div className="border-t border-slate-200 bg-white px-6 py-3 flex-shrink-0">
+          <div className="max-w-3xl mx-auto">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Retrieval</span>
               {[
-                { id: 'v', label: 'Weaviate', short: 'V', color: 'blue' },
-                { id: 'vg', label: 'Weaviate + Graph', short: 'V+G', color: 'green' },
-                { id: 'vgw', label: 'All Sources', short: 'V+G+W', color: 'purple' },
+                { id: 'v', short: 'V', label: 'Weaviate' },
+                { id: 'vg', short: 'V+G', label: 'Weaviate + Graph' },
+                { id: 'vgw', short: 'V+G+W', label: 'All Sources' },
               ].map((mode) => (
                 <button
                   key={mode.id}
                   type="button"
                   onClick={() => setSelectedMode(mode.id)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
                     selectedMode === mode.id
-                      ? mode.color === 'blue'
-                        ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
-                        : mode.color === 'green'
-                        ? 'bg-green-100 text-green-700 ring-1 ring-green-300'
-                        : 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
+                      ? 'bg-[#0A3161] text-white'
                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                   }`}
                   title={mode.label}
@@ -280,117 +318,28 @@ export default function ChatbotPage() {
                 </button>
               ))}
             </div>
-            <form onSubmit={handleSubmit} className="flex gap-3">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about government data, forms, or programs..."
-                className="flex-1 bg-slate-50 text-slate-900 rounded-xl px-4 py-3 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
-                disabled={isLoading}
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || isLoading}
-                className="bg-blue-600 text-white px-5 py-3 rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                <span>Ask</span>
-                <SendIcon className="w-4 h-4" />
-              </button>
+            <form onSubmit={handleSubmit} className="flex items-center gap-3">
+              <div className="flex-1 flex items-center bg-slate-50 rounded-full border border-slate-200 px-4 py-2.5 focus-within:ring-2 focus-within:ring-[#4A7C59]/30 focus-within:border-[#4A7C59]/50 transition-all">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask a follow-up question..."
+                  className="flex-1 text-sm text-slate-800 placeholder-slate-400 bg-transparent outline-none"
+                  disabled={isLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isLoading}
+                  className="w-8 h-8 rounded-full bg-[#4A7C59] text-white flex items-center justify-center hover:bg-[#3D6B4A] disabled:opacity-30 transition-colors flex-shrink-0 ml-2"
+                >
+                  <SendIcon className="w-4 h-4" />
+                </button>
+              </div>
             </form>
           </div>
         </div>
-
-        {/* Right Panel - Suggestions Only */}
-        <div className="w-72 flex-shrink-0 flex flex-col gap-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Suggested Questions</h3>
-            <div className="space-y-2">
-              {suggestedQuestions.map((question, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSuggestionClick(question)}
-                  className="w-full text-left text-sm text-slate-600 hover:text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  {question}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Available Topics</h3>
-            <div className="space-y-3">
-              {/* Agencies */}
-              <div>
-                <p className="text-xs text-slate-500 font-medium mb-1">Agencies</p>
-                <div className="flex flex-wrap gap-1">
-                  {displayAgencies.map((agency, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleSuggestionClick(`What data do we have from ${agency}?`)}
-                      className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs hover:bg-amber-200"
-                    >
-                      {agency}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Forms */}
-              <div>
-                <p className="text-xs text-slate-500 font-medium mb-1">Forms</p>
-                <div className="flex flex-wrap gap-1">
-                  {displayForms.slice(0, 6).map((form, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleSuggestionClick(`What is ${form}?`)}
-                      className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200"
-                    >
-                      {form}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Programs */}
-              <div>
-                <p className="text-xs text-slate-500 font-medium mb-1">Programs</p>
-                <div className="flex flex-wrap gap-1">
-                  {displayPrograms.slice(0, 6).map((prog, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleSuggestionClick(`Tell me about ${prog}`)}
-                      className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
-                    >
-                      {prog}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Topics (only if API returns them) */}
-              {availableEntities?.topics && availableEntities.topics.length > 0 && (
-                <div>
-                  <p className="text-xs text-slate-500 font-medium mb-1">Topics</p>
-                  <div className="flex flex-wrap gap-1">
-                    {availableEntities.topics.slice(0, 8).map((topic, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleSuggestionClick(`What data do we have about ${topic}?`)}
-                        className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200"
-                      >
-                        {topic}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -922,14 +871,6 @@ function ChevronIcon({ className }: { className?: string }) {
   );
 }
 
-function ClaudeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-    </svg>
-  );
-}
-
 function SheetIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -967,46 +908,6 @@ function ExternalLinkIcon({ className }: { className?: string }) {
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
       <polyline points="15 3 21 3 21 9" />
       <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  );
-}
-
-function TokenIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 6v12" />
-      <path d="M8 10h8" />
-      <path d="M8 14h8" />
-    </svg>
-  );
-}
-
-function DataIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <ellipse cx="12" cy="5" rx="9" ry="3" />
-      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-    </svg>
-  );
-}
-
-function SearchIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  );
-}
-
-function WarningIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
     </svg>
   );
 }

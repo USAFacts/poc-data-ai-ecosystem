@@ -35,11 +35,7 @@ export default function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps)
     >
       {/* Header with toggle */}
       <div className="flex items-center justify-between p-4">
-        <div className={`flex items-center gap-2 ${isCollapsed ? 'hidden' : ''}`}>
-          <UsaFactsLogo className="w-6 h-6 flex-shrink-0" />
-          <h1 className="text-lg font-bold whitespace-nowrap">Studio</h1>
-        </div>
-        {isCollapsed && <UsaFactsLogo className="w-5 h-5 flex-shrink-0 mx-auto" />}
+        {!isCollapsed && <h1 className="text-lg font-bold whitespace-nowrap">Studio</h1>}
         <button
           onClick={onToggleCollapse}
           className="p-1.5 rounded-md hover:bg-white/[0.08] transition-colors flex-shrink-0"
@@ -458,18 +454,6 @@ export default function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps)
         {isCollapsed && <p className="text-slate-500 text-[10px]">v0.1</p>}
       </div>
     </aside>
-  );
-}
-
-// USAFacts logo — wavy lines forming US map silhouette
-function UsaFactsLogo({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 32 32" fill="none">
-      <path d="M4 8 C8 6, 12 7, 16 8 C20 9, 24 7, 28 8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M3 13 C7 11, 11 13, 16 13 C21 13, 25 11, 29 13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M5 18 C9 16, 13 18, 17 18 C21 18, 25 16, 28 18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M6 23 C10 21, 14 23, 18 23 C22 23, 25 21, 27 23" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-    </svg>
   );
 }
 
